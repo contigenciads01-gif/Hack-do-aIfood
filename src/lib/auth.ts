@@ -234,10 +234,29 @@ export function useAuth() {
     }
 
     const email = usernameToEmail(rawUsername);
-    const { data, error } = await supabase.auth.signInWithPassword({
+    let { data, error } = await supabase.auth.signInWithPassword({
       email,
       password: rawPass,
     });
+
+    // If login with normalized username failed, check if it was registered with custom email
+    if (error && !isEmailAddress(rawUsername)) {
+      try {
+        const norm = normalizeUsername(rawUsername);
+        const { data: comp } = await supabase
+          .from('companies')
+          .select('user_id')
+          .ilike('nome', norm)
+          .maybeSingle();
+
+        if (comp?.user_id) {
+          // If we had a mapping, but Supabase doesn't expose users email directly to public,
+          // the user might have registered with an email.
+        }
+      } catch {
+        // ignore
+      }
+    }
 
     if (error) {
       if (isRateLimitError(error)) {
