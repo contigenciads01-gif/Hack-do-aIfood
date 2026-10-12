@@ -1,6 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "@fontsource/anton";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -658,3 +659,81 @@
   .pd-brain-icon--pulse,
   .pd-brain-loading span { animation: none; }
 }
+
+/* ═══════════════════════════════════════════════
+   Login Redesign — Drift & Cascade Animations
+   ═══════════════════════════════════════════════ */
+
+@keyframes login-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-cascade-1 { animation: login-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0ms both; }
+.login-cascade-2 { animation: login-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) 60ms both; }
+.login-cascade-3 { animation: login-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) 120ms both; }
+.login-cascade-4 { animation: login-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) 180ms both; }
+.login-cascade-5 { animation: login-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) 240ms both; }
+.login-cascade-6 { animation: login-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) 300ms both; }
+.login-cascade-7 { animation: login-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) 360ms both; }
+
+@keyframes drift-1 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  50% { transform: translate(-12px, -18px) rotate(2deg); }
+  100% { transform: translate(6px, -8px) rotate(-1deg); }
+}
+
+@keyframes drift-2 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  50% { transform: translate(14px, -14px) rotate(-2deg); }
+  100% { transform: translate(-8px, -20px) rotate(1deg); }
+}
+
+@keyframes drift-3 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  50% { transform: translate(-8px, 12px) rotate(1.5deg); }
+  100% { transform: translate(10px, -10px) rotate(-1deg); }
+}
+
+@keyframes drift-4 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  50% { transform: translate(-16px, -10px) rotate(-2deg); }
+  100% { transform: translate(8px, 14px) rotate(2deg); }
+}
+
+@keyframes drift-5 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  50% { transform: translate(10px, 16px) rotate(1deg); }
+  100% { transform: translate(-12px, -12px) rotate(-1.5deg); }
+}
+
+.animate-drift-1 { animation: drift-1 26s ease-in-out infinite alternate; }
+.animate-drift-2 { animation: drift-2 32s ease-in-out infinite alternate; }
+.animate-drift-3 { animation: drift-3 38s ease-in-out infinite alternate; }
+.animate-drift-4 { animation: drift-4 22s ease-in-out infinite alternate; }
+.animate-drift-5 { animation: drift-5 30s ease-in-out infinite alternate; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-drift-1,
+  .animate-drift-2,
+  .animate-drift-3,
+  .animate-drift-4,
+  .animate-drift-5,
+  .login-cascade-1,
+  .login-cascade-2,
+  .login-cascade-3,
+  .login-cascade-4,
+  .login-cascade-5,
+  .login-cascade-6,
+  .login-cascade-7 {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+

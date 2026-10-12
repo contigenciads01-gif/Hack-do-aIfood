@@ -20,6 +20,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import loginBg from '@/assets/login-bg-clean.jpg';
+import logoHack from '@/assets/logo-hack.png';
+import { ValuePanel } from '@/components/login/ValuePanel';
+import { FloatingTiles } from '@/components/login/FloatingTiles';
+import { ArrowHint } from '@/components/login/ArrowHint';
 import { SUPPORT_WHATSAPP } from '@/config';
 import {
   useAuth,
@@ -321,37 +325,42 @@ function LoginPage() {
   const isFormBlocked = loading || lockStatus.isLocked || rateLimitStatus.isLimited;
 
   return (
-    <div className="relative min-h-svh w-full overflow-hidden bg-black font-sans">
-      {/* Background photo */}
+    <div className="relative min-h-svh w-full bg-[#080808] font-sans text-white overflow-x-hidden flex flex-col justify-between">
+      {/* Background Chef photo — face clearly visible in upper right corner */}
       <img
         src={loginBg}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover object-right"
+        alt="Chef"
+        className="absolute inset-0 h-full w-full object-cover object-[right_top] select-none pointer-events-none opacity-85 z-0"
       />
-      {/* Dark gradient for legibility */}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/75 to-black/30" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50" />
 
-      {/* Content */}
-      <div className="relative z-10 flex min-h-svh items-center">
-        <div className="w-full max-w-md px-8 py-12 sm:px-12">
-          {/* Logo */}
-          <h1 className="leading-[0.9]">
-            <span className="block text-6xl font-black italic tracking-tight text-[#EA1D2C] sm:text-7xl">
-              hack du
-            </span>
-            <span className="block text-7xl font-black italic tracking-tight text-[#EA1D2C] sm:text-8xl">
-              ifood
-            </span>
-          </h1>
+      {/* Dark gradient for optimal contrast and readability while keeping chef face visible */}
+      <div className="absolute inset-0 bg-gradient-to-r from-[#080808]/98 via-[#080808]/85 to-[#080808]/25 z-0 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#080808]/95 via-transparent to-[#080808]/40 z-0 pointer-events-none" />
 
-          <p className="mt-6 text-xl font-light text-white/90 sm:text-2xl">
+      {/* Floating glass tiles at varying depths */}
+      <FloatingTiles variant="desktop" />
+      <FloatingTiles variant="mobile" />
+
+      {/* Main Content Area: Responsive Grid (3 columns on Desktop >=1024px, stacked on mobile) */}
+      <div className="relative z-10 flex-1 flex flex-col lg:flex-row lg:items-center px-6 py-8 sm:px-10 lg:px-10 xl:px-14 lg:gap-10 xl:gap-14 max-w-[1600px] w-full mx-auto my-auto">
+        {/* Coluna 1: Esquerda (360px no desktop) */}
+        <div className="w-full lg:w-[360px] lg:shrink-0 flex flex-col relative z-20">
+          {/* Logo Original (PNG transparente com sorriso-seta e faíscas) */}
+          <div className="flex items-center">
+            <img
+              src={logoHack}
+              alt="hack du ifood"
+              className="h-14 sm:h-16 w-auto object-contain"
+            />
+          </div>
+
+          <p className="mt-4 text-base font-light text-white/90 sm:text-lg leading-snug">
             Mais estratégias.
             <br />
             Mais entregas.
           </p>
 
-          <div className="mt-4 h-1 w-14 bg-[#EA1D2C]" />
+          <div className="mt-3 h-1 w-14 bg-[#EA1D2C] rounded-sm" />
 
           {/* Rate-limit warning banner */}
           {rateLimitStatus.isLimited && (
@@ -389,12 +398,12 @@ function LoginPage() {
               <div className="flex items-center gap-3">
                 <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#EA1D2C] to-[#ff5967] text-white shadow-lg shadow-[#EA1D2C]/40">
                   <Mail className="h-7 w-7" />
-                  <div className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white shadow">
+                  <div className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500 text-[10px] text-white shadow">
                     <Sparkles className="h-3 w-3" />
                   </div>
                 </div>
                 <div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     Conta registrada
                   </span>
@@ -521,7 +530,7 @@ function LoginPage() {
               <button
                 type="submit"
                 disabled={isFormBlocked}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-4 text-lg font-semibold text-white shadow-lg shadow-[#EA1D2C]/30 transition-all hover:bg-[#ff3b4b] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-4 text-base font-semibold text-white transition-colors hover:bg-[#d01926] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading
                   ? 'Entrando...'
@@ -535,21 +544,25 @@ function LoginPage() {
                 )}
               </button>
 
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => {
-                  setUsuario('');
-                  setEmail('');
-                  setSenha('');
-                  setConfirmar('');
-                  setModo('cadastro');
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-lg font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
-              >
-                <UserPlus className="h-5 w-5" />
-                Primeiro acesso
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  id="btn-primeiro-acesso"
+                  disabled={loading}
+                  onClick={() => {
+                    setUsuario('');
+                    setEmail('');
+                    setSenha('');
+                    setConfirmar('');
+                    setModo('cadastro');
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-base font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+                >
+                  <UserPlus className="h-5 w-5" />
+                  Primeiro acesso
+                </button>
+                <ArrowHint className="absolute -right-32 top-1/2 -translate-y-1/2 z-30" />
+              </div>
             </form>
           ) : (
             /* Form de primeiro acesso */
@@ -722,7 +735,7 @@ function LoginPage() {
               <button
                 type="submit"
                 disabled={isFormBlocked}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-4 text-lg font-semibold text-white shadow-lg shadow-[#EA1D2C]/30 transition-all hover:bg-[#ff3b4b] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-4 text-base font-semibold text-white transition-colors hover:bg-[#d01926] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading
                   ? 'Criando conta...'
@@ -742,7 +755,7 @@ function LoginPage() {
                   setConfirmar('');
                   setModo('login');
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-lg font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-base font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
               >
                 <ArrowLeft className="h-5 w-5" />
                 Voltar ao login
@@ -750,7 +763,29 @@ function LoginPage() {
             </form>
           )}
         </div>
+
+        {/* Coluna 2: Central — ValuePanel (Desktop ao centro; Mobile abaixo do form) */}
+        <div className="w-full lg:max-w-[520px] lg:shrink-0 mt-8 lg:mt-0 relative z-10">
+          {/* Desktop ValuePanel */}
+          <div className="hidden lg:block">
+            <ValuePanel variant="desktop" />
+          </div>
+          {/* Mobile ValuePanel (exibido abaixo do formulário) */}
+          {!emailPendente && (
+            <div className="block lg:hidden pt-4 border-t border-[#2A2A2A]/80">
+              <ValuePanel variant="mobile" />
+            </div>
+          )}
+        </div>
+
+        {/* Coluna 3: Direita — Área aberta mantendo o rosto do chef no canto superior direito */}
+        <div className="hidden lg:flex flex-1 min-h-[360px] pointer-events-none select-none" aria-hidden="true" />
       </div>
+
+      {/* Rodapé Pequeno: "Hack do aiFood não é afiliado ao iFood." */}
+      <footer className="relative z-10 px-6 py-4 sm:px-10 lg:px-14 text-center lg:text-left text-sm text-white/50 border-t border-white/5">
+        Hack do aiFood não é afiliado ao iFood.
+      </footer>
     </div>
   );
 }
