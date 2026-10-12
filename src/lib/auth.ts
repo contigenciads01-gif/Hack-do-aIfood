@@ -4,6 +4,7 @@ import type { User, Session } from '@supabase/supabase-js';
 
 const LOCK_KEY = 'hdi_auth_lock';
 const ATTEMPTS_KEY = 'hdi_auth_attempts';
+const RATE_LIMIT_LOCK_KEY = 'hdi_auth_ratelimit_lock';
 const MAX_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 30 * 1000;
 
@@ -68,6 +69,54 @@ export function calculatePasswordStrength(password: string): {
   return { valid: true, strength: 'fraca' };
 }
 
+export function isRateLimitError(err: any): boolean {
+  if (!err) return false;
+  const status = err.status || err.statusCode;
+  const code = (err.code || '').toLowerCase();
+  const msg = (err.message || '').toLowerCase();
+  return (
+    status === 429 ||
+    code === 'over_email_send_rate_limit' ||
+    code === 'over_request_rate_limit' ||
+    msg.includes('rate limit') ||
+    msg.includes('too many requests')
+  );
+}
+
+export function getRateLimitLock(): { isLimited: boolean; remainingSeconds: number } {
+  try {
+    const lockTime = localStorage.getItem(RATE_LIMIT_LOCK_KEY);
+    if (!lockTime) return { isLimited: false, remainingSeconds: 0 };
+    const expiresAt = parseInt(lockTime, 10);
+    const now = Date.now();
+    if (now < expiresAt) {
+      return { isLimited: true, remainingSeconds: Math.ceil((expiresAt - now) / 1000) };
+    }
+    localStorage.removeItem(RATE_LIMIT_LOCK_KEY);
+    return { isLimited: false, remainingSeconds: 0 };
+  } catch {
+    return { isLimited: false, remainingSeconds: 0 };
+  }
+}
+
+export function setRateLimitCooldown(seconds = 60): { isLimited: boolean; remainingSeconds: number } {
+  try {
+    const lockUntil = Date.now() + seconds * 1000;
+    localStorage.setItem(RATE_LIMIT_LOCK_KEY, String(lockUntil));
+    return { isLimited: true, remainingSeconds: seconds };
+  } catch {
+    return { isLimited: true, remainingSeconds: seconds };
+  }
+}
+
+export function clearRateLimitCooldown(): void {
+  try {
+    localStorage.removeItem(RATE_LIMIT_LOCK_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function getAuthLock(): { isLocked: boolean; remainingSeconds: number } {
   try {
     const lockTime = localStorage.getItem(LOCK_KEY);
@@ -115,8 +164,9 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [lockStatus, setLockStatus] = useState(getAuthLock());
+  const [rateLimitStatus, setRateLimitStatus] = useState(getRateLimitLock());
 
-  // Countdown timer for lock
+  // Countdown timer for 5-attempt lock
   useEffect(() => {
     if (!lockStatus.isLocked) return;
     const interval = setInterval(() => {
@@ -126,6 +176,17 @@ export function useAuth() {
     }, 1000);
     return () => clearInterval(interval);
   }, [lockStatus.isLocked]);
+
+  // Countdown timer for rate limit cooldown
+  useEffect(() => {
+    if (!rateLimitStatus.isLimited) return;
+    const interval = setInterval(() => {
+      const current = getRateLimitLock();
+      setRateLimitStatus(current);
+      if (!current.isLimited) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [rateLimitStatus.isLimited]);
 
   useEffect(() => {
     // Initial session
@@ -153,6 +214,13 @@ export function useAuth() {
       throw new Error(`Muitas tentativas. Aguarde ${lock.remainingSeconds}s.`);
     }
 
+    const rateLock = getRateLimitLock();
+    if (rateLock.isLimited) {
+      throw new Error(
+        `Limite de requisições do servidor atingido. Aguarde ${rateLock.remainingSeconds}s.`,
+      );
+    }
+
     const email = usernameToEmail(rawUsername);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -160,6 +228,12 @@ export function useAuth() {
     });
 
     if (error) {
+      if (isRateLimitError(error)) {
+        const cooldown = setRateLimitCooldown(60);
+        setRateLimitStatus(cooldown);
+        throw error;
+      }
+
       const fail = recordFailedAttempt();
       setLockStatus(fail);
       if (fail.isLocked) {
@@ -174,6 +248,13 @@ export function useAuth() {
   };
 
   const signup = async (rawUsername: string, rawPass: string) => {
+    const rateLock = getRateLimitLock();
+    if (rateLock.isLimited) {
+      throw new Error(
+        `Limite de envio de e-mails atingido no servidor. Aguarde ${rateLock.remainingSeconds}s para tentar novamente.`,
+      );
+    }
+
     const username = normalizeUsername(rawUsername);
     const email = usernameToEmail(username);
 
@@ -188,19 +269,21 @@ export function useAuth() {
     });
 
     if (error) {
+      if (isRateLimitError(error)) {
+        const cooldown = setRateLimitCooldown(60);
+        setRateLimitStatus(cooldown);
+      }
       throw error;
     }
 
-    // Auto sign in if session wasn't returned
-    if (!data.session && data.user) {
-      const signInRes = await supabase.auth.signInWithPassword({
-        email,
-        password: rawPass,
-      });
-      return signInRes.data;
-    }
+    // Return result cleanly without automated redundant retries
+    const needsEmailConfirmation = !data.session && !!data.user;
 
-    return data;
+    return {
+      user: data.user,
+      session: data.session,
+      needsEmailConfirmation,
+    };
   };
 
   const logout = async () => {
@@ -215,6 +298,7 @@ export function useAuth() {
     loading,
     isAuthenticated: !!session,
     lockStatus,
+    rateLimitStatus,
     login,
     signup,
     logout,

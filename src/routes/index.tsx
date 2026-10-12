@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   User,
   Lock,
@@ -11,7 +11,8 @@ import {
   ArrowLeft,
   Check,
   AlertCircle,
-  ShieldCheck,
+  Mail,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import loginBg from '@/assets/login-bg-clean.jpg';
@@ -21,7 +22,7 @@ import {
   normalizeUsername,
   validateUsername,
   calculatePasswordStrength,
-  type PasswordStrength,
+  isRateLimitError,
 } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -47,7 +48,7 @@ export const Route = createFileRoute('/')({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading: authLoading, lockStatus, login, signup } = useAuth();
+  const { user, loading: authLoading, lockStatus, rateLimitStatus, login, signup } = useAuth();
 
   const [modo, setModo] = useState<'login' | 'cadastro'>('login');
   const [usuario, setUsuario] = useState('');
@@ -56,6 +57,10 @@ function LoginPage() {
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailPendente, setEmailPendente] = useState(false);
+
+  // Guard against duplicate concurrent submissions (double-clicks / double events)
+  const isSubmittingRef = useRef(false);
 
   // Username validation state for registration
   const [usernameCheck, setUsernameCheck] = useState<{
@@ -89,7 +94,7 @@ function LoginPage() {
     }
   };
 
-  // Real-time username check on registration
+  // Real-time username check on registration (debounced)
   useEffect(() => {
     if (modo !== 'cadastro' || !usuario.trim()) {
       setUsernameCheck({ valid: true });
@@ -103,10 +108,8 @@ function LoginPage() {
       return;
     }
 
-    // Debounced check
     const timeout = setTimeout(async () => {
       try {
-        // Query companies with that name or check auth
         const { data } = await supabase
           .from('companies')
           .select('id')
@@ -129,7 +132,7 @@ function LoginPage() {
       } catch {
         setUsernameCheck({ valid: true, available: true });
       }
-    }, 400);
+    }, 450);
 
     return () => clearTimeout(timeout);
   }, [usuario, modo]);
@@ -138,8 +141,19 @@ function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent duplicate triggers
+    if (isSubmittingRef.current || loading) return;
+
     if (lockStatus.isLocked) {
       toast.error(`Acesso bloqueado. Tente novamente em ${lockStatus.remainingSeconds}s.`);
+      return;
+    }
+
+    if (rateLimitStatus.isLimited) {
+      toast.error(
+        `Limite de requisições atingido. Aguarde ${rateLimitStatus.remainingSeconds}s antes de tentar novamente.`,
+      );
       return;
     }
 
@@ -149,7 +163,9 @@ function LoginPage() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
+
     try {
       const data = await login(normUser, senha);
       toast.success('Login realizado com sucesso!');
@@ -159,21 +175,39 @@ function LoginPage() {
         navigate({ to: '/dashboard' });
       }
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.includes('email_provider_disabled')) {
-        toast.error('Ative o provedor de Email no painel do Supabase (Authentication > Providers > Email).');
-      } else if (msg.includes('tentativas') || msg.includes('bloqueado')) {
-        toast.error(msg);
+      if (isRateLimitError(err)) {
+        toast.error(
+          'Limite de requisições do servidor atingido. Aguarde alguns instantes antes de tentar novamente.',
+        );
       } else {
-        toast.error('Usuário ou senha incorretos.');
+        const msg = err?.message || '';
+        if (msg.includes('tentativas') || msg.includes('bloqueado')) {
+          toast.error(msg);
+        } else if (msg.includes('Email not confirmed')) {
+          toast.error('E-mail ainda não confirmado. Verifique sua caixa de entrada.');
+        } else {
+          toast.error('Usuário ou senha incorretos.');
+        }
       }
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
   const handleCadastro = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent duplicate triggers
+    if (isSubmittingRef.current || loading) return;
+
+    if (rateLimitStatus.isLimited) {
+      toast.error(
+        `Limite de envio de e-mails atingido. Aguarde ${rateLimitStatus.remainingSeconds}s para tentar novamente.`,
+      );
+      return;
+    }
+
     const normUser = normalizeUsername(usuario);
     const userVal = validateUsername(normUser);
     if (!userVal.valid) {
@@ -197,24 +231,45 @@ function LoginPage() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
+
     try {
-      await signup(normUser, senha);
-      toast.success('Conta criada com sucesso! Complete o cadastro da sua loja.');
-      navigate({ to: '/cadastro' });
-    } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.includes('already registered') || msg.includes('already exists')) {
-        toast.error('Este usuário já está cadastrado. Faça login.');
-      } else if (msg.includes('email_provider_disabled')) {
-        toast.error('O provedor de e-mail do Supabase precisa ser ativado no painel do Supabase (Authentication > Providers > Email).');
+      const result = await signup(normUser, senha);
+
+      if (result.needsEmailConfirmation) {
+        setEmailPendente(true);
+        toast.info(
+          'Conta cadastrada! Um link de confirmação foi enviado. Verifique sua caixa de entrada.',
+        );
       } else {
-        toast.error(msg || 'Erro ao criar conta. Tente novamente.');
+        toast.success('Conta criada com sucesso! Complete o cadastro da sua loja.');
+        navigate({ to: '/cadastro' });
+      }
+    } catch (err: any) {
+      if (isRateLimitError(err)) {
+        toast.error(
+          'Limite de envio de e-mails do servidor atingido (máx. por hora do serviço padrão). Aguarde 60 segundos antes de tentar novamente.',
+        );
+      } else {
+        const msg = err?.message || '';
+        if (msg.includes('already registered') || msg.includes('already exists')) {
+          toast.error('Este usuário já está cadastrado. Faça login.');
+        } else if (msg.includes('email_provider_disabled')) {
+          toast.error(
+            'O provedor de e-mail do Supabase precisa ser ativado no painel (Authentication > Providers > Email).',
+          );
+        } else {
+          toast.error(msg || 'Erro ao criar conta. Tente novamente.');
+        }
       }
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
+
+  const isFormBlocked = loading || lockStatus.isLocked || rateLimitStatus.isLimited;
 
   return (
     <div className="relative min-h-svh w-full overflow-hidden bg-black font-sans">
@@ -249,18 +304,60 @@ function LoginPage() {
 
           <div className="mt-4 h-1 w-14 bg-[#EA1D2C]" />
 
-          {/* Locked warning banner */}
-          {lockStatus.isLocked && (
-            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-300">
-              <AlertCircle className="h-6 w-6 shrink-0" />
+          {/* Rate-limit warning banner */}
+          {rateLimitStatus.isLimited && (
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/15 p-4 text-amber-300">
+              <Clock className="mt-0.5 h-5 w-5 shrink-0" />
               <div className="text-sm">
-                <strong>Acesso temporariamente bloqueado</strong>
-                <p>Muitas tentativas incorretas. Aguarde {lockStatus.remainingSeconds}s para tentar novamente.</p>
+                <strong className="block font-bold">Limite de e-mails atingido</strong>
+                <p className="mt-0.5 text-xs text-amber-200/90">
+                  O serviço de e-mail do servidor atingiu o limite de segurança por hora. Aguarde{' '}
+                  <span className="font-bold underline">{rateLimitStatus.remainingSeconds}s</span>{' '}
+                  antes de tentar novamente.
+                </p>
               </div>
             </div>
           )}
 
-          {modo === 'login' ? (
+          {/* 5-failed-attempts lock banner */}
+          {lockStatus.isLocked && !rateLimitStatus.isLimited && (
+            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-300">
+              <AlertCircle className="h-6 w-6 shrink-0" />
+              <div className="text-sm">
+                <strong>Acesso temporariamente bloqueado</strong>
+                <p>
+                  Muitas tentativas incorretas. Aguarde {lockStatus.remainingSeconds}s para tentar
+                  novamente.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Email Confirmation Pending Screen */}
+          {emailPendente ? (
+            <div className="mt-8 space-y-5 rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-md text-white">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EA1D2C]/20 text-[#EA1D2C]">
+                <Mail className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Confirmação de e-mail necessária</h3>
+                <p className="mt-2 text-sm text-white/70">
+                  Sua conta foi criada no sistema. Se a confirmação de e-mail estiver ativa no seu
+                  painel, verifique sua caixa de entrada para ativar o acesso.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmailPendente(false);
+                  setModo('login');
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#EA1D2C] py-3.5 text-base font-semibold text-white transition hover:bg-[#ff3b4b]"
+              >
+                Voltar ao login
+              </button>
+            </div>
+          ) : modo === 'login' ? (
             /* Form de login */
             <form onSubmit={handleLogin} className="mt-8 space-y-4">
               <label className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-md transition-colors focus-within:border-[#EA1D2C]">
@@ -273,7 +370,7 @@ function LoginPage() {
                     onChange={(e) => setUsuario(e.target.value)}
                     placeholder="@seurestaurante"
                     autoComplete="username"
-                    disabled={lockStatus.isLocked || loading}
+                    disabled={isFormBlocked}
                     className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
                   />
                 </span>
@@ -289,7 +386,7 @@ function LoginPage() {
                     onChange={(e) => setSenha(e.target.value)}
                     placeholder="••••••••"
                     autoComplete="current-password"
-                    disabled={lockStatus.isLocked || loading}
+                    disabled={isFormBlocked}
                     className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
                   />
                 </span>
@@ -317,22 +414,31 @@ function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading || lockStatus.isLocked}
+                disabled={isFormBlocked}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-4 text-lg font-semibold text-white shadow-lg shadow-[#EA1D2C]/30 transition-all hover:bg-[#ff3b4b] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? 'Entrando...' : lockStatus.isLocked ? `Aguarde ${lockStatus.remainingSeconds}s` : 'Entrar'}
-                {!loading && !lockStatus.isLocked && <ArrowRight className="h-5 w-5" />}
+                {loading
+                  ? 'Entrando...'
+                  : lockStatus.isLocked
+                    ? `Aguarde (${lockStatus.remainingSeconds}s)`
+                    : rateLimitStatus.isLimited
+                      ? `Aguarde (${rateLimitStatus.remainingSeconds}s)`
+                      : 'Entrar'}
+                {!loading && !lockStatus.isLocked && !rateLimitStatus.isLimited && (
+                  <ArrowRight className="h-5 w-5" />
+                )}
               </button>
 
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setUsuario('');
                   setSenha('');
                   setConfirmar('');
                   setModo('cadastro');
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-lg font-semibold text-white transition-colors hover:bg-white/10"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-lg font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
               >
                 <UserPlus className="h-5 w-5" />
                 Primeiro acesso
@@ -356,7 +462,8 @@ function LoginPage() {
                       onChange={(e) => setUsuario(e.target.value)}
                       placeholder="@sualoja"
                       autoComplete="username"
-                      className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40"
+                      disabled={isFormBlocked}
+                      className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
                     />
                   </span>
                   {usuario.trim() && usernameCheck.available && (
@@ -380,14 +487,17 @@ function LoginPage() {
                 <label className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-md transition-colors focus-within:border-[#EA1D2C]">
                   <Lock className="h-5 w-5 shrink-0 text-white/80" />
                   <span className="flex w-full flex-col">
-                    <span className="text-xs font-medium text-white/60">Criar senha (mínimo 8 caracteres, letra e número)</span>
+                    <span className="text-xs font-medium text-white/60">
+                      Criar senha (mínimo 8 caracteres, letra e número)
+                    </span>
                     <input
                       type={showSenha ? 'text' : 'password'}
                       value={senha}
                       onChange={(e) => setSenha(e.target.value)}
                       placeholder="••••••••"
                       autoComplete="new-password"
-                      className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40"
+                      disabled={isFormBlocked}
+                      className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
                     />
                   </span>
                   <button
@@ -456,7 +566,8 @@ function LoginPage() {
                     onChange={(e) => setConfirmar(e.target.value)}
                     placeholder="••••••••"
                     autoComplete="new-password"
-                    className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40"
+                    disabled={isFormBlocked}
+                    className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
                   />
                 </span>
               </label>
@@ -467,6 +578,7 @@ function LoginPage() {
                   type="checkbox"
                   checked={aceitouTermos}
                   onChange={(e) => setAceitouTermos(e.target.checked)}
+                  disabled={isFormBlocked}
                   className="mt-1 h-5 w-5 rounded border-white/30 accent-[#EA1D2C]"
                 />
                 <span>
@@ -476,22 +588,27 @@ function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-4 text-lg font-semibold text-white shadow-lg shadow-[#EA1D2C]/30 transition-all hover:bg-[#ff3b4b] active:scale-[0.98] disabled:opacity-60"
+                disabled={isFormBlocked}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-4 text-lg font-semibold text-white shadow-lg shadow-[#EA1D2C]/30 transition-all hover:bg-[#ff3b4b] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? 'Criando conta...' : 'Criar acesso'}
-                {!loading && <ArrowRight className="h-5 w-5" />}
+                {loading
+                  ? 'Criando conta...'
+                  : rateLimitStatus.isLimited
+                    ? `Aguarde (${rateLimitStatus.remainingSeconds}s)`
+                    : 'Criar acesso'}
+                {!loading && !rateLimitStatus.isLimited && <ArrowRight className="h-5 w-5" />}
               </button>
 
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setUsuario('');
                   setSenha('');
                   setConfirmar('');
                   setModo('login');
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-lg font-semibold text-white transition-colors hover:bg-white/10"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-lg font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
               >
                 <ArrowLeft className="h-5 w-5" />
                 Voltar ao login
