@@ -16,6 +16,8 @@ import {
   MessageSquare,
   Instagram,
   Tags,
+  Megaphone,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,6 +39,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
+import { useCompany, isCompanyPlus } from '@/lib/data/company';
+import { PlusUpgradeModal } from '@/components/workspace/plus-upgrade-modal';
 
 const groups = [
   {
@@ -60,6 +64,7 @@ const groups = [
       { to: '/avaliacoes', label: 'Respostas a avaliações', icon: MessageSquare },
       { to: '/instagram', label: 'Instagram', icon: Instagram },
       { to: '/promocoes', label: 'Promoções e preço', icon: Tags },
+      { to: '/anuncios', label: 'Anúncios', icon: Megaphone, isPlus: true },
     ],
   },
   {
@@ -75,9 +80,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { user, loading: authLoading, logout } = useAuth();
+  const { data: company } = useCompany();
+  const isPlus = isCompanyPlus(company);
 
   const [menu, setMenu] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Auth protection for protected routes
   useEffect(() => {
@@ -145,19 +153,45 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             {groups.map((g) => (
               <div className="nav-group" key={g.title}>
                 <p>{g.title}</p>
-                {g.items.map((item) => (
-                  <Button
-                    asChild
-                    variant="ghost"
-                    className={`workspace-nav ${pathname === item.to ? 'is-active' : ''}`}
-                    key={item.to}
-                  >
-                    <Link to={item.to} onClick={() => setMenu(false)}>
-                      <item.icon />
-                      {item.label}
-                    </Link>
-                  </Button>
-                ))}
+                {g.items.map((item) => {
+                  const locked = (item as any).isPlus && !isPlus;
+                  if (locked) {
+                    return (
+                      <Button
+                        key={item.to}
+                        variant="ghost"
+                        className="workspace-nav flex items-center justify-between text-white/50 hover:bg-white/5 hover:text-white"
+                        onClick={() => {
+                          setMenu(false);
+                          setShowUpgradeModal(true);
+                        }}
+                      >
+                        <span className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          {item.label}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/30">
+                          <Lock className="h-3 w-3" />
+                          PLUS
+                        </span>
+                      </Button>
+                    );
+                  }
+
+                  return (
+                    <Button
+                      asChild
+                      variant="ghost"
+                      className={`workspace-nav ${pathname === item.to ? 'is-active' : ''}`}
+                      key={item.to}
+                    >
+                      <Link to={item.to} onClick={() => setMenu(false)}>
+                        <item.icon />
+                        {item.label}
+                      </Link>
+                    </Button>
+                  );
+                })}
               </div>
             ))}
             <Button
@@ -197,6 +231,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Plus Upgrade Modal */}
+      <PlusUpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
     </div>
   );
 }

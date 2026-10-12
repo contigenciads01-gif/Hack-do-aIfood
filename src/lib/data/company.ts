@@ -6,6 +6,7 @@ export interface Company {
   id?: string | undefined;
   user_id: string;
   nome: string;
+  responsavel?: string | null | undefined;
   categoria: string;
   cidade?: string | null | undefined;
   whatsapp?: string | null | undefined;
@@ -23,9 +24,15 @@ export interface Company {
   estilo_visual?: string | null | undefined;
   data_inicio: string;
   nivel: number;
+  plano?: 'gratuito' | 'plus' | string | undefined;
   cadastro_passo: number;
   created_at?: string | undefined;
   updated_at?: string | undefined;
+}
+
+export function isCompanyPlus(company: Company | null | undefined): boolean {
+  if (!company) return false;
+  return company.plano === 'plus' || (company.nivel ?? 1) >= 2;
 }
 
 const LOCAL_COMPANY_KEY = 'hdi_company_profile';
@@ -57,6 +64,7 @@ export function useCompany() {
             id: data.id,
             user_id: data.user_id,
             nome: data.nome,
+            responsavel: (data as any).responsavel ?? null,
             categoria: data.categoria,
             cidade: data.cidade,
             whatsapp: data.whatsapp,
@@ -74,6 +82,7 @@ export function useCompany() {
             estilo_visual: data.estilo_visual,
             data_inicio: data.data_inicio ?? new Date().toISOString().split('T')[0] ?? '',
             nivel: data.nivel ?? 1,
+            plano: (data as any).plano ?? ((data.nivel ?? 1) >= 2 ? 'plus' : 'gratuito'),
             cadastro_passo: data.cadastro_passo ?? 1,
             created_at: data.created_at,
             updated_at: data.updated_at,

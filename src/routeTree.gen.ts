@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnunciosRouteImport } from './routes/anuncios'
 import { Route as AvaliacoesRouteImport } from './routes/avaliacoes'
 import { Route as BrandingRouteImport } from './routes/branding'
 import { Route as CadastroRouteImport } from './routes/cadastro'
@@ -29,6 +30,11 @@ import { Route as PromocoesRouteImport } from './routes/promocoes'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnunciosRoute = AnunciosRouteImport.update({
+  id: '/anuncios',
+  path: '/anuncios',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AvaliacoesRoute = AvaliacoesRouteImport.update({
@@ -109,6 +115,7 @@ const PromocoesRoute = PromocoesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/anuncios': typeof AnunciosRoute
   '/avaliacoes': typeof AvaliacoesRoute
   '/branding': typeof BrandingRoute
   '/cadastro': typeof CadastroRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/anuncios': typeof AnunciosRoute
   '/avaliacoes': typeof AvaliacoesRoute
   '/branding': typeof BrandingRoute
   '/cadastro': typeof CadastroRoute
@@ -146,6 +154,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/anuncios': typeof AnunciosRoute
   '/avaliacoes': typeof AvaliacoesRoute
   '/branding': typeof BrandingRoute
   '/cadastro': typeof CadastroRoute
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/anuncios'
     | '/avaliacoes'
     | '/branding'
     | '/cadastro'
@@ -184,6 +194,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/anuncios'
     | '/avaliacoes'
     | '/branding'
     | '/cadastro'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/anuncios'
     | '/avaliacoes'
     | '/branding'
     | '/cadastro'
@@ -221,6 +233,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnunciosRoute: typeof AnunciosRoute
   AvaliacoesRoute: typeof AvaliacoesRoute
   BrandingRoute: typeof BrandingRoute
   CadastroRoute: typeof CadastroRoute
@@ -245,6 +258,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/anuncios': {
+      id: '/anuncios'
+      path: '/anuncios'
+      fullPath: '/anuncios'
+      preLoaderRoute: typeof AnunciosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/avaliacoes': {
@@ -357,6 +377,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnunciosRoute: AnunciosRoute,
   AvaliacoesRoute: AvaliacoesRoute,
   BrandingRoute: BrandingRoute,
   CadastroRoute: CadastroRoute,
