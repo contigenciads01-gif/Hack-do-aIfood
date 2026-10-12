@@ -8,12 +8,24 @@ const RATE_LIMIT_LOCK_KEY = 'hdi_auth_ratelimit_lock';
 const MAX_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 30 * 1000;
 
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+export function isEmailAddress(input: string): boolean {
+  return input.includes('@') && input.includes('.') && !input.startsWith('@');
+}
+
 export function normalizeUsername(raw: string): string {
   return raw.replace(/^@+/, '').trim().toLowerCase();
 }
 
 export function usernameToEmail(raw: string): string {
-  const norm = normalizeUsername(raw);
+  const trimmed = raw.trim();
+  if (isEmailAddress(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  const norm = normalizeUsername(trimmed);
   return `${norm}@hackdoaifood.app`;
 }
 
@@ -247,7 +259,7 @@ export function useAuth() {
     return data;
   };
 
-  const signup = async (rawUsername: string, rawPass: string) => {
+  const signup = async (rawUsername: string, rawPass: string, rawEmail?: string) => {
     const rateLock = getRateLimitLock();
     if (rateLock.isLimited) {
       throw new Error(
@@ -256,7 +268,7 @@ export function useAuth() {
     }
 
     const username = normalizeUsername(rawUsername);
-    const email = usernameToEmail(username);
+    const email = rawEmail && validateEmail(rawEmail) ? rawEmail.trim().toLowerCase() : usernameToEmail(username);
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -282,8 +294,36 @@ export function useAuth() {
     return {
       user: data.user,
       session: data.session,
+      email,
       needsEmailConfirmation,
     };
+  };
+
+  const resendEmailConfirmation = async (email: string) => {
+    const rateLock = getRateLimitLock();
+    if (rateLock.isLimited) {
+      throw new Error(
+        `Aguarde ${rateLock.remainingSeconds}s antes de solicitar um novo envio.`,
+      );
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+    });
+
+    if (error) {
+      if (isRateLimitError(error)) {
+        const cooldown = setRateLimitCooldown(60);
+        setRateLimitStatus(cooldown);
+      }
+      throw error;
+    }
+
+    // Set cooldown to prevent accidental spam
+    const cooldown = setRateLimitCooldown(60);
+    setRateLimitStatus(cooldown);
+    return true;
   };
 
   const logout = async () => {
@@ -301,6 +341,7 @@ export function useAuth() {
     rateLimitStatus,
     login,
     signup,
+    resendEmailConfirmation,
     logout,
   };
 }

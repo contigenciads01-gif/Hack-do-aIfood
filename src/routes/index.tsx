@@ -13,6 +13,10 @@ import {
   AlertCircle,
   Mail,
   Clock,
+  Send,
+  RefreshCw,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import loginBg from '@/assets/login-bg-clean.jpg';
@@ -21,6 +25,8 @@ import {
   useAuth,
   normalizeUsername,
   validateUsername,
+  validateEmail,
+  isEmailAddress,
   calculatePasswordStrength,
   isRateLimitError,
 } from '@/lib/auth';
@@ -48,16 +54,27 @@ export const Route = createFileRoute('/')({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading: authLoading, lockStatus, rateLimitStatus, login, signup } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    lockStatus,
+    rateLimitStatus,
+    login,
+    signup,
+    resendEmailConfirmation,
+  } = useAuth();
 
   const [modo, setModo] = useState<'login' | 'cadastro'>('login');
   const [usuario, setUsuario] = useState('');
+  const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmar, setConfirmar] = useState('');
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [emailPendente, setEmailPendente] = useState(false);
+  const [sentToEmail, setSentToEmail] = useState('');
 
   // Guard against duplicate concurrent submissions (double-clicks / double events)
   const isSubmittingRef = useRef(false);
@@ -157,9 +174,9 @@ function LoginPage() {
       return;
     }
 
-    const normUser = normalizeUsername(usuario);
-    if (!normUser || !senha.trim()) {
-      toast.error('Preencha o usuário e a senha.');
+    const userInput = usuario.trim();
+    if (!userInput || !senha.trim()) {
+      toast.error('Preencha seu e-mail (ou usuário) e a senha.');
       return;
     }
 
@@ -167,7 +184,7 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      const data = await login(normUser, senha);
+      const data = await login(userInput, senha);
       toast.success('Login realizado com sucesso!');
       if (data?.user) {
         await checkExistingCompanyAndRedirect(data.user.id);
@@ -184,9 +201,11 @@ function LoginPage() {
         if (msg.includes('tentativas') || msg.includes('bloqueado')) {
           toast.error(msg);
         } else if (msg.includes('Email not confirmed')) {
+          setSentToEmail(userInput.includes('@') && !userInput.startsWith('@') ? userInput : `${normalizeUsername(userInput)}@hackdoaifood.app`);
+          setEmailPendente(true);
           toast.error('E-mail ainda não confirmado. Verifique sua caixa de entrada.');
         } else {
-          toast.error('Usuário ou senha incorretos.');
+          toast.error('E-mail/usuário ou senha incorretos.');
         }
       }
     } finally {
@@ -215,6 +234,13 @@ function LoginPage() {
       return;
     }
 
+    // Validate email if informed
+    const emailTrim = email.trim();
+    if (emailTrim && !validateEmail(emailTrim)) {
+      toast.error('Formato de e-mail inválido. Exemplo: seu.nome@gmail.com');
+      return;
+    }
+
     const passVal = calculatePasswordStrength(senha);
     if (!passVal.valid) {
       toast.error(passVal.message || 'Senha fraca.');
@@ -235,12 +261,14 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await signup(normUser, senha);
+      const result = await signup(normUser, senha, emailTrim || undefined);
+      const targetEmail = result.email || emailTrim || `${normUser}@hackdoaifood.app`;
+      setSentToEmail(targetEmail);
 
       if (result.needsEmailConfirmation) {
         setEmailPendente(true);
         toast.info(
-          'Conta cadastrada! Um link de confirmação foi enviado. Verifique sua caixa de entrada.',
+          'Conta cadastrada! Um link de confirmação foi enviado para o seu e-mail.',
         );
       } else {
         toast.success('Conta criada com sucesso! Complete o cadastro da sua loja.');
@@ -254,7 +282,7 @@ function LoginPage() {
       } else {
         const msg = err?.message || '';
         if (msg.includes('already registered') || msg.includes('already exists')) {
-          toast.error('Este usuário já está cadastrado. Faça login.');
+          toast.error('Este usuário ou e-mail já está cadastrado. Faça login.');
         } else if (msg.includes('email_provider_disabled')) {
           toast.error(
             'O provedor de e-mail do Supabase precisa ser ativado no painel (Authentication > Providers > Email).',
@@ -266,6 +294,27 @@ function LoginPage() {
     } finally {
       setLoading(false);
       isSubmittingRef.current = false;
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!sentToEmail || resending) return;
+    if (rateLimitStatus.isLimited) {
+      toast.error(`Aguarde ${rateLimitStatus.remainingSeconds}s antes de reenviar.`);
+      return;
+    }
+    setResending(true);
+    try {
+      await resendEmailConfirmation(sentToEmail);
+      toast.success('E-mail de confirmação reenviado com sucesso! Verifique sua caixa de entrada e spam.');
+    } catch (err: any) {
+      if (isRateLimitError(err)) {
+        toast.error('Limite de envio atingido. Aguarde 60 segundos.');
+      } else {
+        toast.error(err?.message || 'Erro ao reenviar confirmação.');
+      }
+    } finally {
+      setResending(false);
     }
   };
 
@@ -333,42 +382,99 @@ function LoginPage() {
             </div>
           )}
 
-          {/* Email Confirmation Pending Screen */}
+          {/* Email Confirmation Pending Screen — Digna, Moderna & Polida */}
           {emailPendente ? (
-            <div className="mt-8 space-y-5 rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-md text-white">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EA1D2C]/20 text-[#EA1D2C]">
-                <Mail className="h-6 w-6" />
+            <div className="mt-8 overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-b from-white/[0.12] to-white/[0.04] p-7 shadow-2xl backdrop-blur-2xl text-white">
+              {/* Badge com ícone animado */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#EA1D2C] to-[#ff5967] text-white shadow-lg shadow-[#EA1D2C]/40">
+                  <Mail className="h-7 w-7" />
+                  <div className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white shadow">
+                    <Sparkles className="h-3 w-3" />
+                  </div>
+                </div>
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Conta registrada
+                  </span>
+                  <h3 className="mt-1 text-2xl font-bold tracking-tight text-white">
+                    Confirme seu e-mail
+                  </h3>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-bold">Confirmação de e-mail necessária</h3>
-                <p className="mt-2 text-sm text-white/70">
-                  Sua conta foi criada no sistema. Se a confirmação de e-mail estiver ativa no seu
-                  painel, verifique sua caixa de entrada para ativar o acesso.
+
+              {/* Card com o e-mail destacado */}
+              <div className="mt-5 rounded-2xl border border-white/10 bg-black/40 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-white/50">
+                  Enviamos o link de ativação para:
+                </p>
+                <p className="mt-1 flex items-center gap-2 font-mono text-base font-bold text-white break-all">
+                  <span className="text-[#EA1D2C]">✉</span>
+                  {sentToEmail || (usuario ? (isEmailAddress(usuario) ? usuario : `${normalizeUsername(usuario)}@hackdoaifood.app`) : 'seu e-mail')}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmailPendente(false);
-                  setModo('login');
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#EA1D2C] py-3.5 text-base font-semibold text-white transition hover:bg-[#ff3b4b]"
-              >
-                Voltar ao login
-              </button>
+
+              <div className="mt-4 space-y-2 text-sm text-white/80">
+                <p>
+                  1. Abra seu aplicativo de e-mail e clique no botão de validação.
+                </p>
+                <p className="text-xs text-white/50">
+                  Caso não encontre na caixa de entrada, verifique na pasta de <strong>Spam</strong> ou <strong>Promoções</strong>.
+                </p>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="mt-6 space-y-3">
+                <button
+                  type="button"
+                  onClick={handleResendConfirmation}
+                  disabled={resending || rateLimitStatus.isLimited}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 py-3.5 text-sm font-semibold text-white transition hover:bg-white/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resending ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Reenviando link...
+                    </>
+                  ) : rateLimitStatus.isLimited ? (
+                    <>
+                      <Clock className="h-4 w-4 text-amber-400" />
+                      Reenviar em {rateLimitStatus.remainingSeconds}s
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 text-white/80" />
+                      Reenviar e-mail de confirmação
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmailPendente(false);
+                    setModo('login');
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-3.5 text-base font-bold text-white shadow-lg shadow-[#EA1D2C]/30 transition hover:bg-[#ff3b4b] active:scale-[0.99]"
+                >
+                  <ArrowRight className="h-5 w-5" />
+                  Ir para o Login
+                </button>
+              </div>
             </div>
           ) : modo === 'login' ? (
             /* Form de login */
             <form onSubmit={handleLogin} className="mt-8 space-y-4">
               <label className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-md transition-colors focus-within:border-[#EA1D2C]">
-                <User className="h-5 w-5 shrink-0 text-white/80" />
+                <Mail className="h-5 w-5 shrink-0 text-white/80" />
                 <span className="flex w-full flex-col">
-                  <span className="text-xs font-medium text-white/60">Usuário</span>
+                  <span className="text-xs font-medium text-white/60">E-mail ou Usuário</span>
                   <input
                     type="text"
                     value={usuario}
                     onChange={(e) => setUsuario(e.target.value)}
-                    placeholder="@seurestaurante"
+                    placeholder="voce@restaurante.com ou @usuario"
                     autoComplete="username"
                     disabled={isFormBlocked}
                     className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
@@ -434,6 +540,7 @@ function LoginPage() {
                 disabled={loading}
                 onClick={() => {
                   setUsuario('');
+                  setEmail('');
                   setSenha('');
                   setConfirmar('');
                   setModo('cadastro');
@@ -448,14 +555,40 @@ function LoginPage() {
             /* Form de primeiro acesso */
             <form onSubmit={handleCadastro} className="mt-8 space-y-4">
               <p className="text-sm text-white/70">
-                Crie seu acesso com um <strong>@usuario</strong> único e uma senha segura.
+                Crie seu acesso com suas credenciais para gerenciar seus metaprompts.
               </p>
 
+              {/* Campo de E-mail Real */}
+              <div>
+                <label className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-md transition-colors focus-within:border-[#EA1D2C]">
+                  <Mail className="h-5 w-5 shrink-0 text-white/80" />
+                  <span className="flex w-full flex-col">
+                    <span className="text-xs font-medium text-white/60">Seu e-mail corporativo / pessoal</span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="seunome@restaurante.com"
+                      autoComplete="email"
+                      disabled={isFormBlocked}
+                      className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
+                    />
+                  </span>
+                  {email.trim() && validateEmail(email) && (
+                    <Check className="h-5 w-5 text-emerald-400" />
+                  )}
+                </label>
+                <p className="mt-1 px-2 text-[11px] text-white/40">
+                  O link de confirmação e recuperação de acesso será enviado para este e-mail.
+                </p>
+              </div>
+
+              {/* Campo de Usuário (@loja) */}
               <div>
                 <label className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-md transition-colors focus-within:border-[#EA1D2C]">
                   <User className="h-5 w-5 shrink-0 text-white/80" />
                   <span className="flex w-full flex-col">
-                    <span className="text-xs font-medium text-white/60">@usuario da loja</span>
+                    <span className="text-xs font-medium text-white/60">Identificador da loja (@usuario)</span>
                     <input
                       type="text"
                       value={usuario}
@@ -604,6 +737,7 @@ function LoginPage() {
                 disabled={loading}
                 onClick={() => {
                   setUsuario('');
+                  setEmail('');
                   setSenha('');
                   setConfirmar('');
                   setModo('login');
