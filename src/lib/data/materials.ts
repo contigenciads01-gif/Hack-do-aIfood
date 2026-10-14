@@ -12,6 +12,8 @@ export interface DbMaterial {
   original: string | null;
   summary: string[];
   criado_em: string;
+  prato_id?: string | null;
+  tipo?: string | null;
 }
 
 const LOCAL_MATERIALS_KEY = 'hdi_materials';
@@ -53,6 +55,8 @@ export function useMaterials() {
           original: item.original,
           summary: Array.isArray(item.summary) ? (item.summary as string[]) : [],
           criado_em: item.criado_em,
+          prato_id: (item as any).prato_id || null,
+          tipo: (item as any).tipo || null,
         }));
 
         localStorage.setItem(`${LOCAL_MATERIALS_KEY}_${user.id}`, JSON.stringify(mapped));
@@ -81,6 +85,8 @@ export function useSaveMaterial() {
         user_id: userId,
         criado_em,
         original: material.original || null,
+        prato_id: material.prato_id || null,
+        tipo: material.tipo || null,
       };
 
       if (user?.id) {
@@ -95,7 +101,9 @@ export function useSaveMaterial() {
             original: material.original || null,
             summary: material.summary as any,
             criado_em,
-          });
+            prato_id: material.prato_id || null,
+            tipo: material.tipo || null,
+          } as any);
         } catch (err) {
           console.warn('Material insert network warning:', err);
         }

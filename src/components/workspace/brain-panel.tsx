@@ -25,7 +25,7 @@ export async function copyPrompt(text: string) {
     await navigator.clipboard.writeText(text);
     toast.success('Prompt copiado com sucesso.');
   } catch {
-    toast.error('Não foi possível copiar. Selecione o texto no cérebro e copie manualmente.');
+    toast.error('Não foi possível copiar. Selecione o texto e copie manualmente.');
   }
 }
 
@@ -68,9 +68,9 @@ export function BrainPanel({
           <SheetHeader>
             <SheetTitle className="flex gap-3 items-center">
               <Brain className="text-[#EA1D2C]" />
-              Cérebro · {title}
+              Prompt pronto · {title}
             </SheetTitle>
-            <SheetDescription>Metaprompt compilado para IA</SheetDescription>
+            <SheetDescription>Prompt compilado pronto para IA</SheetDescription>
           </SheetHeader>
 
           <div className="prompt-actions mt-5">
@@ -104,7 +104,7 @@ export function BrainPanel({
           <textarea
             ref={textarea}
             className="brain-text mt-5"
-            aria-label="Metaprompt editável"
+            aria-label="Prompt pronto editável"
             value={text}
             onChange={(e) => onChange(e.target.value)}
           />
@@ -134,7 +134,7 @@ export function BrainPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>Regenerar a partir dos campos?</AlertDialogTitle>
             <AlertDialogDescription className="text-white/60">
-              Todas as edições manuais feitas no texto do metaprompt serão descartadas e substituídas pelo gerador automático.
+              Todas as edições manuais feitas no texto do prompt pronto serão descartadas e substituídas pelo gerador automático.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

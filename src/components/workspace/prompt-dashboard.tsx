@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import {
   Brain,
   Copy,
@@ -9,6 +10,10 @@ import {
   ChevronDown,
   Sparkles,
   Check,
+  Camera,
+  FolderOpen,
+  Download,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +26,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { buildMetaprompt, type Values } from '@/lib/metaprompt';
 import {
@@ -36,6 +48,10 @@ import { PromptImage } from './prompt-image';
 import { BrainPanel, copyPrompt } from './brain-panel';
 import { ToolPage } from './pages';
 import { PlanGate } from './plan-gate';
+import { BrandProfileBar } from './brand-profile-bar';
+import { FloatingMaterialsButton } from './floating-materials-button';
+import { MateriaisExplorer } from './materiais-explorer';
+import { usePratos, usePrato, type Prato } from '@/lib/data/pratos';
 import {
   useCompany,
   usePromptDraft,
@@ -315,6 +331,81 @@ export function PromptDashboard({ toolId }: { toolId: string }) {
   const [formatToSwitch, setFormatToSwitch] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  const [selectedPratoId, setSelectedPratoId] = useState<string | null>(null);
+  const [showSelectorModal, setShowSelectorModal] = useState(false);
+  const { prato: selectedPrato, fotos } = usePrato(selectedPratoId || undefined);
+
+  const bestPhotoUrl =
+    (fotos && fotos.length > 0 ? (fotos[0].signed_url || fotos[0].storage_path) : '') ||
+    image ||
+    '';
+
+  const handleSelectPrato = (p: Prato) => {
+    setSelectedPratoId(p.id);
+    setShowSelectorModal(false);
+    setValues((prev) => ({
+      ...prev,
+      nome_prato: p.nome,
+      prato_ou_tema: p.nome,
+      prato: p.nome,
+    }));
+    toast.success(`Prato "${p.nome}" selecionado!`);
+  };
+
+  const handleCopyPhoto = async () => {
+    if (!bestPhotoUrl) {
+      toast.error('Nenhuma foto selecionada para copiar.');
+      return;
+    }
+    try {
+      const res = await fetch(bestPhotoUrl);
+      const blob = await res.blob();
+      let pngBlob = blob;
+      if (!blob.type.includes('png')) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = bestPhotoUrl;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0);
+        const converted = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob((b) => resolve(b), 'image/png')
+        );
+        if (converted) pngBlob = converted;
+      }
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [pngBlob.type]: pngBlob,
+        }),
+      ]);
+      toast.success('Foto copiada! Agora basta colar com Ctrl+V no ChatGPT.');
+    } catch (err) {
+      console.warn('Clipboard write image failed, falling back to download:', err);
+      toast.info('Não foi possível copiar direto. Baixando a foto...');
+      handleDownloadPhoto();
+    }
+  };
+
+  const handleDownloadPhoto = () => {
+    if (!bestPhotoUrl) {
+      toast.error('Nenhuma foto selecionada.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = bestPhotoUrl;
+    link.download = `foto-${selectedPrato?.nome ? selectedPrato.nome.toLowerCase().replace(/\s+/g, '-') : 'prato'}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Download da foto iniciado.');
+  };
+
   const defaults = (id: string) =>
     Object.fromEntries(
       (promptFields[id] || [])
@@ -412,10 +503,16 @@ export function PromptDashboard({ toolId }: { toolId: string }) {
         text,
         original,
         summary,
+        prato_id: selectedPratoId || null,
+        tipo: toolId,
       });
-      toast.success('Salvo em Meus materiais.');
+      toast.success(
+        selectedPrato
+          ? `Salvo na pasta "${selectedPrato.nome}" com sucesso!`
+          : 'Salvo em Meus materiais.',
+      );
     } catch {
-      toast.error('Erro ao salvar em Meus materiais.');
+      toast.error('Erro ao salvar material.');
     }
   };
 
@@ -434,73 +531,146 @@ export function PromptDashboard({ toolId }: { toolId: string }) {
     <PlanGate toolTitle={currentToolTitle}>
       <ToolPage
         title={currentToolTitle}
-        description="Seu próximo material começa com um bom prompt."
+        description="Seu próximo material começa com um bom prompt pronto."
         icon={Brain}
       >
-        <div className="prompt-dashboard">
+        <BrandProfileBar />
+
+        <div className="prompt-dashboard mt-6">
           {/* ═══════ LEFT: DATA ═══════ */}
           <section className="prompt-data">
             <div className="pd-section-header">
               <h2 className="section-title">Dados</h2>
             </div>
 
-          {/* Format picker (imagem tool only) */}
-          {toolId === 'imagem' && (
-            <div className="tool-card pd-card">
-              <h3 className="pd-card__title">Formato</h3>
-              <div className="pd-formats">
-                {Object.entries(formatNames).map(([id, name]) => (
-                  <FormatCard
-                    key={id}
-                    id={id}
-                    name={name}
-                    spec={FORMAT_SPECS[id] || ''}
-                    active={template === id}
-                    onClick={() => {
-                      if (text !== original) {
-                        setFormatToSwitch(id);
-                      } else {
-                        confirmSwitchFormat(id);
-                      }
-                    }}
-                  />
-                ))}
+            {/* Format picker (imagem tool only) */}
+            {toolId === 'imagem' && (
+              <div className="tool-card pd-card">
+                <h3 className="pd-card__title">Formato</h3>
+                <div className="pd-formats">
+                  {Object.entries(formatNames).map(([id, name]) => (
+                    <FormatCard
+                      key={id}
+                      id={id}
+                      name={name}
+                      spec={FORMAT_SPECS[id] || ''}
+                      active={template === id}
+                      onClick={() => {
+                        if (text !== original) {
+                          setFormatToSwitch(id);
+                        } else {
+                          confirmSwitchFormat(id);
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Company fields */}
-          <div className="tool-card pd-card">
-            <h3 className="pd-card__title">Empresa</h3>
-            <div className="pd-fields">
-              {commonFields.map((field) => (
-                <FieldControl
-                  key={field.key}
-                  field={field}
-                  value={values[field.key] ?? ''}
-                  category={String(values['categoria'] || '')}
-                  onChange={(v) => setValues((old) => ({ ...old, [field.key]: v }))}
-                />
-              ))}
-            </div>
-          </div>
+            {/* Foto do prato Card (para ferramentas com fotos de comida) */}
+            {toolId !== 'branding' && toolId !== 'pagina' && toolId !== 'avaliacoes' && (
+              <div className="tool-card pd-card border-white/10">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="pd-card__title">Foto do prato</h3>
+                  {selectedPrato && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPratoId(null)}
+                      className="text-[11px] text-white/50 hover:text-white/90 underline"
+                    >
+                      Limpar seleção
+                    </button>
+                  )}
+                </div>
 
-          {/* Image upload (not for avaliacoes/promocoes) */}
-          {toolId !== 'avaliacoes' && toolId !== 'promocoes' && (
+                {selectedPrato ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-xl bg-white/5 p-3 border border-white/10">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-[#EA1D2C] tracking-wider">
+                          Prato selecionado
+                        </span>
+                        <p className="font-semibold text-white text-sm">{selectedPrato.nome}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowSelectorModal(true)}
+                        className="text-xs rounded-xl border-white/20 h-8"
+                      >
+                        Trocar prato
+                      </Button>
+                    </div>
+
+                    {fotos && fotos.length > 0 ? (
+                      <div>
+                        <p className="text-[11px] text-white/60 mb-2">
+                          {fotos.length} de 3 fotos tiradas deste prato:
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {fotos.map((f) => (
+                            <div
+                              key={f.id}
+                              className="relative aspect-square rounded-xl overflow-hidden border border-white/10 bg-black/40"
+                            >
+                              <img
+                                src={f.signed_url || f.storage_path}
+                                alt={`Foto slot ${f.slot}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute bottom-1 left-1 bg-black/80 backdrop-blur-xs px-1.5 py-0.5 rounded text-[9px] font-bold text-white/90">
+                                {f.slot === 1 ? 'De cima' : f.slot === 2 ? 'De lado' : 'Detalhe'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-white/15 p-3 text-center">
+                        <p className="text-xs text-white/60 mb-2">Este prato ainda não tem fotos tiradas.</p>
+                        <Button asChild size="sm" variant="outline" className="rounded-xl text-xs h-8">
+                          <Link to="/foto">Tirar fotos agora</Link>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-xs text-white/60">
+                      Escolha um prato cadastrado para usar as fotos e preencher o nome automaticamente, ou envie uma foto nova.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => setShowSelectorModal(true)}
+                        className="rounded-xl bg-[#EA1D2C] text-white hover:bg-[#ff3b4b] text-xs font-bold gap-2 h-10"
+                      >
+                        <FolderOpen size={16} />
+                        Escolher dos meus materiais
+                      </Button>
+                      <Button
+                        asChild
+                        variant="outline"
+                        className="rounded-xl border-white/20 text-white hover:bg-white/10 text-xs font-semibold gap-2 h-10"
+                      >
+                        <Link to="/foto">
+                          <Camera size={16} />
+                          Enviar foto nova
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Company fields */}
             <div className="tool-card pd-card">
-              <PromptImage image={image} onChange={setImage} />
-            </div>
-          )}
-
-          {/* Tool-specific fields */}
-          <div className="tool-card pd-card">
-            <h3 className="pd-card__title">
-              {toolId === 'branding' ? 'Público, visual e posicionamento' : 'Seu material'}
-            </h3>
-            <div className="pd-fields">
-              {(promptFields[activeTemplate] || [])
-                .filter((f: Field) => !f.when || (f.when[0] ? values[f.when[0]] === f.when[1] : true))
-                .map((field: Field) => (
+              <h3 className="pd-card__title">Empresa</h3>
+              <div className="pd-fields">
+                {commonFields.map((field) => (
                   <FieldControl
                     key={field.key}
                     field={field}
@@ -509,212 +679,363 @@ export function PromptDashboard({ toolId }: { toolId: string }) {
                     onChange={(v) => setValues((old) => ({ ...old, [field.key]: v }))}
                   />
                 ))}
-            </div>
-          </div>
-
-          {/* Validation issues */}
-          {issues.length > 0 && (
-            <div className="pd-notice pd-notice--warn" role="alert">
-              <AlertTriangle size={20} />
-              <div>
-                <strong>Confira estes campos:</strong>
-                <div className="pd-notice__links">
-                  {labels(issues).map((f) => (
-                    <button
-                      type="button"
-                      className="pd-notice__link"
-                      key={f.key}
-                      onClick={() => goField(f.key)}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
-          )}
 
-          {/* Generate CTA */}
-          <Button className="pd-generate-btn" disabled={busy} onClick={generate}>
-            <Sparkles size={18} />
-            Gerar prompt
-          </Button>
-        </section>
+            {/* Image upload (not for avaliacoes/promocoes) */}
+            {toolId !== 'avaliacoes' && toolId !== 'promocoes' && (
+              <div className="tool-card pd-card">
+                <PromptImage image={image} onChange={setImage} />
+              </div>
+            )}
 
-        {/* ═══════ RIGHT: RESULT ═══════ */}
-        <section className="prompt-result">
-          <h2 className="section-title">Resultado</h2>
+            {/* Tool-specific fields */}
+            <div className="tool-card pd-card">
+              <h3 className="pd-card__title">
+                {toolId === 'branding' ? 'Público, visual e posicionamento' : 'Seu material'}
+              </h3>
+              <div className="pd-fields">
+                {(promptFields[activeTemplate] || [])
+                  .filter((f: Field) => !f.when || (f.when[0] ? values[f.when[0]] === f.when[1] : true))
+                  .map((field: Field) => (
+                    <FieldControl
+                      key={field.key}
+                      field={field}
+                      value={values[field.key] ?? ''}
+                      category={String(values['categoria'] || '')}
+                      onChange={(v) => setValues((old) => ({ ...old, [field.key]: v }))}
+                    />
+                  ))}
+              </div>
+            </div>
 
-          {/* Brain preview card */}
-          <div className="tool-card pd-card pd-result-card">
-            <div className="pd-brain-hero">
-              <button
-                type="button"
-                className={`pd-brain-icon ${busy ? 'pd-brain-icon--pulse' : ''} ${text ? 'pd-brain-icon--ready' : ''}`}
-                aria-label="Ver e editar metaprompt"
-                title="Ver e editar metaprompt"
-                onClick={() => {
-                  if (text) setOpen(true);
-                  else generate();
-                }}
-              >
-                <Brain size={28} />
-              </button>
-
-              <div className="pd-brain-info">
-                <h2 className="pd-brain-info__title">
-                  {busy ? 'Montando metaprompt…' : text ? 'Metaprompt pronto' : 'Seu metaprompt'}
-                </h2>
-
-                {busy ? (
-                  <div className="pd-brain-loading">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                ) : text ? (
-                  <div className="pd-brain-summary">
-                    {summary.map((line, i) => (
-                      <p key={i}>{line}</p>
+            {/* Validation issues */}
+            {issues.length > 0 && (
+              <div className="pd-notice pd-notice--warn" role="alert">
+                <AlertTriangle size={20} />
+                <div>
+                  <strong>Confira estes campos:</strong>
+                  <div className="pd-notice__links">
+                    {labels(issues).map((f) => (
+                      <button
+                        type="button"
+                        className="pd-notice__link"
+                        key={f.key}
+                        onClick={() => goField(f.key)}
+                      >
+                        {f.label}
+                      </button>
                     ))}
                   </div>
-                ) : (
-                  <p className="pd-brain-placeholder">
-                    Preencha os campos e clique em <strong>Gerar prompt</strong>.
-                  </p>
-                )}
+                </div>
               </div>
+            )}
+
+            {/* Generate CTA */}
+            <Button className="pd-generate-btn" disabled={busy} onClick={generate}>
+              <Sparkles size={18} />
+              Gerar prompt
+            </Button>
+          </section>
+
+          {/* ═══════ RIGHT: RESULT ═══════ */}
+          <section className="prompt-result">
+            <h2 className="section-title">Resultado</h2>
+
+            {/* Brain preview card */}
+            <div className="tool-card pd-card pd-result-card">
+              <div className="pd-brain-hero">
+                <button
+                  type="button"
+                  className={`pd-brain-icon ${busy ? 'pd-brain-icon--pulse' : ''} ${text ? 'pd-brain-icon--ready' : ''}`}
+                  aria-label="Ver e editar prompt pronto"
+                  title="Ver e editar prompt pronto"
+                  onClick={() => {
+                    if (text) setOpen(true);
+                    else generate();
+                  }}
+                >
+                  <Brain size={28} />
+                </button>
+
+                <div className="pd-brain-info">
+                  <h2 className="pd-brain-info__title">
+                    {busy ? 'Montando prompt pronto…' : text ? 'Prompt pronto' : 'Seu prompt pronto'}
+                  </h2>
+
+                  {busy ? (
+                    <div className="pd-brain-loading">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  ) : text ? (
+                    <div className="pd-brain-summary">
+                      {summary.map((line, i) => (
+                        <p key={i}>{line}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="pd-brain-placeholder">
+                      Preencha os campos e clique em <strong>Gerar prompt</strong>.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {text && (
+                <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setOpen(true)}
+                    className="text-xs text-white/70 hover:text-white gap-1.5"
+                  >
+                    <Brain size={14} />
+                    Ver e editar texto completo
+                  </Button>
+                  {text !== original && (
+                    <span className="example-label pd-edited-badge">Editado</span>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Actions when prompt is ready */}
-            {text && (
-              <>
-                <div className="pd-result-actions">
-                  <Button variant="outline" onClick={() => setOpen(true)}>
-                    <Brain size={16} />
-                    Ver e editar
+            {/* 3-Step Action Panel: Levar para o ChatGPT */}
+            <div className="tool-card pd-card border-[#EA1D2C]/40 bg-gradient-to-b from-[#1a1414] to-[#121212]">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-black tracking-tight text-white flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-[#EA1D2C]" />
+                  Levar para o ChatGPT
+                </h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#EA1D2C] bg-[#EA1D2C]/15 border border-[#EA1D2C]/30 px-2 py-0.5 rounded-full">
+                  3 passos
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {/* Passo 1: Copiar prompt pronto */}
+                <div className="flex items-center justify-between rounded-xl bg-white/5 p-3 border border-white/10 hover:border-white/20 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#EA1D2C] text-xs font-black text-white shrink-0">
+                      1
+                    </span>
+                    <div>
+                      <p className="text-xs font-bold text-white">Copiar prompt pronto</p>
+                      <p className="text-[11px] text-white/60">Copia o comando compilado</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!text}
+                    onClick={() => copyPrompt(text)}
+                    className="rounded-xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-xs font-bold gap-1.5 shrink-0"
+                  >
+                    <Copy size={14} />
+                    Copiar
                   </Button>
-                  <Button onClick={() => copyPrompt(text)}>
-                    <Copy size={16} />
-                    Copiar prompt
-                  </Button>
-                  <Button asChild variant="outline">
-                    <a
-                      href="https://chatgpt.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink size={16} />
+                </div>
+
+                {/* Passo 2: Copiar foto (ClipboardItem) com fallback de Baixar fotos */}
+                <div className="rounded-xl bg-white/5 p-3 border border-white/10 hover:border-white/20 transition-colors space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#EA1D2C] text-xs font-black text-white shrink-0">
+                        2
+                      </span>
+                      <div>
+                        <p className="text-xs font-bold text-white">Copiar foto</p>
+                        <p className="text-[11px] text-white/60">
+                          {bestPhotoUrl ? 'Pronta para colar (Ctrl+V)' : 'Nenhuma foto selecionada'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {bestPhotoUrl ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleCopyPhoto}
+                            className="rounded-xl border-white/20 text-xs font-bold gap-1.5"
+                            title="Copiar imagem para colar com Ctrl+V"
+                          >
+                            <Copy size={14} />
+                            Copiar foto
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleDownloadPhoto}
+                            className="rounded-xl text-xs text-white/70 hover:text-white gap-1"
+                            title="Baixar foto no computador"
+                          >
+                            <Download size={14} />
+                            Baixar
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowSelectorModal(true)}
+                          className="rounded-xl border-white/20 text-xs"
+                        >
+                          Selecionar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Passo 3: Abrir o ChatGPT */}
+                <div className="flex items-center justify-between rounded-xl bg-white/5 p-3 border border-white/10 hover:border-white/20 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#EA1D2C] text-xs font-black text-white shrink-0">
+                      3
+                    </span>
+                    <div>
+                      <p className="text-xs font-bold text-white">Abrir o ChatGPT</p>
+                      <p className="text-[11px] text-white/60">Cole a foto e o prompt no chat</p>
+                    </div>
+                  </div>
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl border-white/20 hover:bg-white/10 text-xs font-bold gap-1.5 shrink-0"
+                  >
+                    <a href="https://chatgpt.com" target="_blank" rel="noopener noreferrer">
+                      <ExternalLink size={14} />
                       Abrir ChatGPT
                     </a>
                   </Button>
-                  <Button variant="outline" onClick={save}>
-                    <Save size={16} />
-                    Salvar
-                  </Button>
                 </div>
-                {text !== original && (
-                  <span className="example-label pd-edited-badge">Editado</span>
+              </div>
+
+              {/* Salvar na pasta do prato */}
+              <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!text}
+                  onClick={save}
+                  className="rounded-xl border-white/20 text-xs text-white hover:bg-white/10 gap-2 font-semibold"
+                >
+                  <Save size={14} />
+                  {selectedPrato ? `Salvar na pasta "${selectedPrato.nome}"` : 'Salvar em Meus materiais'}
+                </Button>
+                {selectedPrato && (
+                  <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
+                    <Check size={12} /> Na pasta {selectedPrato.nome}
+                  </span>
                 )}
-              </>
+              </div>
+            </div>
+
+            {/* iFood notice */}
+            {toolId === 'imagem' && (
+              <div className="pd-notice pd-notice--warn">
+                <AlertTriangle size={20} />
+                <p>
+                  O iFood aceita imagens feitas ou melhoradas com IA apenas se representarem fielmente
+                  o prato que você entrega, e orienta sinalizar o uso de IA. Confira as regras atuais
+                  no seu Portal do Parceiro.
+                </p>
+              </div>
             )}
-          </div>
 
-          {/* How-to card */}
-          <div className="tool-card pd-card">
-            <h2 className="pd-card__title">Como usar no ChatGPT</h2>
-            <div className="pd-steps">
-              {['Anexe a imagem', 'Cole o prompt', 'Peça ajustes na mesma conversa'].map(
-                (step, i) => (
-                  <div className="pd-step" key={step}>
-                    <span className="pd-step__number">{i + 1}</span>
-                    <p className="pd-step__text">{step}</p>
-                  </div>
-                ),
-              )}
-            </div>
-            <p className="pd-how-tip">
-              Recomendamos o ChatGPT porque aceita foto anexada, edita imagem e permite ajustes na
-              mesma conversa.
-            </p>
-          </div>
+            {/* Page preview teaser */}
+            {toolId === 'pagina' && (
+              <div className="tool-card pd-card">
+                <h2 className="pd-card__title">Blocos e visual da página</h2>
+                <p>Prévia visual em breve. O prompt de texto e visual já pode ser copiado.</p>
+              </div>
+            )}
+          </section>
+        </div>
 
-          {/* iFood notice */}
-          {toolId === 'imagem' && (
-            <div className="pd-notice pd-notice--warn">
-              <AlertTriangle size={20} />
-              <p>
-                O iFood aceita imagens feitas ou melhoradas com IA apenas se representarem fielmente
-                o prato que você entrega, e orienta sinalizar o uso de IA. Confira as regras atuais
-                no seu Portal do Parceiro.
-              </p>
-            </div>
-          )}
+        {/* Screen-reader live region */}
+        <div className="sr-only" aria-live="polite">
+          {busy
+            ? 'Montando prompt pronto'
+            : issues.length
+              ? 'Campos pendentes'
+              : text
+                ? 'Prompt pronto'
+                : ''}
+        </div>
 
-          {/* Page preview teaser */}
-          {toolId === 'pagina' && (
-            <div className="tool-card pd-card">
-              <h2 className="pd-card__title">Blocos e visual da página</h2>
-              <p>Prévia visual em breve. O prompt de texto e visual já pode ser copiado.</p>
-            </div>
-          )}
-        </section>
-      </div>
+        {/* Floating 56px rounded-square button with store logo opening materials selector */}
+        <FloatingMaterialsButton onSelectPrato={handleSelectPrato} />
 
-      {/* Screen-reader live region */}
-      <div className="sr-only" aria-live="polite">
-        {busy
-          ? 'Montando metaprompt'
-          : issues.length
-            ? 'Campos pendentes'
-            : text
-              ? 'Metaprompt pronto'
-              : ''}
-      </div>
+        {/* Selector Modal Dialog for Escolher dos meus materiais */}
+        <Dialog open={showSelectorModal} onOpenChange={setShowSelectorModal}>
+          <DialogContent
+            className="max-w-4xl p-0 border-white/15 bg-[#0f0f10] text-white h-[90vh] sm:h-[80vh] overflow-hidden"
+            aria-describedby={undefined}
+          >
+            <DialogTitle className="sr-only">Seletor de Materiais</DialogTitle>
+            <DialogDescription className="sr-only">
+              Escolha um prato para anexar às ferramentas.
+            </DialogDescription>
+            <MateriaisExplorer
+              mode="seletor"
+              onSelectPrato={handleSelectPrato}
+              onClose={() => setShowSelectorModal(false)}
+            />
+          </DialogContent>
+        </Dialog>
 
-      {/* Brain editor sheet */}
-      <BrainPanel
-        open={open}
-        onOpenChange={setOpen}
-        title={currentToolTitle}
-        text={text}
-        original={original}
-        onChange={setText}
-        missing={labels([...built.missing, ...built.optionalMissing])}
-        onField={goField}
-        onRegenerate={() => {
-          setText(built.text);
-          setOriginal(built.text);
-          setSummary(built.summary);
-        }}
-      />
+        {/* Brain editor sheet */}
+        <BrainPanel
+          open={open}
+          onOpenChange={setOpen}
+          title={currentToolTitle}
+          text={text}
+          original={original}
+          onChange={setText}
+          missing={labels([...built.missing, ...built.optionalMissing])}
+          onField={goField}
+          onRegenerate={() => {
+            setText(built.text);
+            setOriginal(built.text);
+            setSummary(built.summary);
+          }}
+        />
 
-      {/* Format Switch Confirmation AlertDialog */}
-      <AlertDialog
-        open={!!formatToSwitch}
-        onOpenChange={(open) => !open && setFormatToSwitch(null)}
-      >
-        <AlertDialogContent className="border-white/15 bg-[#181818] text-white">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Trocar formato?</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/60">
-              Trocar o formato descartará as edições feitas neste metaprompt.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/20 bg-transparent text-white hover:bg-white/10">
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-[#EA1D2C] text-white hover:bg-[#ff3b4b]"
-              onClick={() => formatToSwitch && confirmSwitchFormat(formatToSwitch)}
-            >
-              Confirmar troca
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </ToolPage>
+        {/* Format Switch Confirmation AlertDialog */}
+        <AlertDialog
+          open={!!formatToSwitch}
+          onOpenChange={(open) => !open && setFormatToSwitch(null)}
+        >
+          <AlertDialogContent className="border-white/15 bg-[#181818] text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Trocar formato?</AlertDialogTitle>
+              <AlertDialogDescription className="text-white/60">
+                Trocar o formato descartará as edições feitas neste prompt pronto.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-white/20 bg-transparent text-white hover:bg-white/10">
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-[#EA1D2C] text-white hover:bg-[#ff3b4b]"
+                onClick={() => formatToSwitch && confirmSwitchFormat(formatToSwitch)}
+              >
+                Confirmar troca
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </ToolPage>
     </PlanGate>
   );
 }
