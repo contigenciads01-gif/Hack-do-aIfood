@@ -14,7 +14,9 @@ import {
   Percent,
   ArrowUpRight,
   ArrowDownRight,
+  BookOpen,
 } from "lucide-react";
+import { PlanGate } from "@/components/workspace/plan-gate";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -114,53 +116,34 @@ function DashboardPage() {
   const maxV = Math.max(...horas.map((x) => x.v));
 
   return (
-    <div className="min-h-svh bg-zinc-950 text-zinc-100">
-      {/* Topbar */}
-      <header className="hidden">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
-          <span className="text-xl font-black italic tracking-tight text-[#EA1D2C]">
-            hack du ifood
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <label className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 sm:flex">
-              <Search className="h-4 w-4 text-zinc-500" />
-              <input
-                placeholder="Buscar pedido..."
-                className="w-40 bg-transparent text-sm outline-none placeholder:text-zinc-600"
-              />
-            </label>
-            <button className="relative rounded-xl border border-white/10 bg-white/5 p-2 transition-colors hover:bg-white/10">
-              <Bell className="h-4 w-4" />
-              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#EA1D2C]" />
-            </button>
-            <Link
-              to="/"
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10"
-            >
-              <LogOut className="h-4 w-4" />
-              Sair
-            </Link>
+    <PlanGate toolTitle="Painel de Desempenho e Faturamento">
+      <div className="min-h-svh bg-zinc-950 text-zinc-100">
+        <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+          {/* Heading */}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h1 className="flex items-center gap-2 text-2xl font-bold">
+                <LayoutDashboard className="h-6 w-6 text-[#EA1D2C]" />
+                Visão geral
+              </h1>
+              <p className="mt-1 text-sm text-zinc-400">
+                Restaurante Sabor &amp; Arte · hoje
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link
+                to="/tutorial"
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <BookOpen className="h-4 w-4 text-[#EA1D2C]" />
+                Ver tutorial
+              </Link>
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-400">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+                Loja aberta
+              </div>
+            </div>
           </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-        {/* Heading */}
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <LayoutDashboard className="h-6 w-6 text-[#EA1D2C]" />
-              Visão geral
-            </h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              Restaurante Sabor &amp; Arte · hoje, 9 de outubro
-            </p>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-400">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            Loja aberta
-          </div>
-        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -293,5 +276,6 @@ function DashboardPage() {
         </div>
       </main>
     </div>
+    </PlanGate>
   );
 }

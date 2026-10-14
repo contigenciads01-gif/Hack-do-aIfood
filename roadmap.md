@@ -1,7 +1,7 @@
 # Requested additions
 - [x] Preserve existing login and dashboard; add shared desktop/mobile navigation.
 - [x] Add studio, tool placeholders, materials, public-page placeholder and company/account screens.
-- [x] Add visual image form and credits screen with local examples only.
+- [x] Add visual image form and subscription plans screen (Experimental, Mensal, Trimestral).
 - [x] Verify navigation and layouts at 360, 390 and 1280 pixels.
 
 # Local metaprompt dashboards

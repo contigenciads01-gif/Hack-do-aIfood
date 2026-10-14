@@ -18,6 +18,7 @@ import {
   Tags,
   Megaphone,
   Lock,
+  BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,11 +42,15 @@ import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { useCompany, isCompanyPlus } from '@/lib/data/company';
 import { PlusUpgradeModal } from '@/components/workspace/plus-upgrade-modal';
+import { useSubscription } from '@/lib/subscription';
 
 const groups = [
   {
     title: 'INÍCIO',
-    items: [{ to: '/dashboard', label: 'Painel', icon: LayoutDashboard }],
+    items: [
+      { to: '/dashboard', label: 'Painel', icon: LayoutDashboard },
+      { to: '/tutorial', label: 'Tutorial', icon: BookOpen },
+    ],
   },
   {
     title: 'ESTÚDIO',
@@ -70,7 +75,7 @@ const groups = [
   {
     title: 'CONTA',
     items: [
-      { to: '/creditos', label: 'Créditos', icon: CreditCard },
+      { to: '/planos', label: 'Planos e assinatura', icon: CreditCard },
       { to: '/empresa', label: 'Minha empresa', icon: Store },
     ],
   },
@@ -81,6 +86,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { user, loading: authLoading, logout } = useAuth();
   const { data: company } = useCompany();
+  const { access, subscription } = useSubscription();
   const isPlus = isCompanyPlus(company);
 
   const [menu, setMenu] = useState(false);
@@ -93,6 +99,20 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       navigate({ to: '/' });
     }
   }, [authLoading, user, pathname]);
+
+  // Discrete notification when 2 days or less remaining on active plan
+  useEffect(() => {
+    if (access.isExpiringSoon && access.hasAccess) {
+      const alertedKey = `hdi_expiring_alert_${subscription?.id || 'trial'}`;
+      if (!sessionStorage.getItem(alertedKey)) {
+        sessionStorage.setItem(alertedKey, 'true');
+        toast.warning(
+          `Sua assinatura expira em ${access.formattedRemaining}. Acesse a aba Planos para renovar.`,
+          { duration: 6000 }
+        );
+      }
+    }
+  }, [access.isExpiringSoon, access.hasAccess, access.formattedRemaining, subscription?.id]);
 
   if (pathname === '/' || pathname === '/cadastro') {
     return <>{children}</>;
@@ -128,12 +148,41 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             hack du ifood
           </Link>
           <div className="header-actions">
-            <span className="example-label header-free">Prompts grátis</span>
+            <Link
+              to="/planos"
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-opacity hover:opacity-90 ${
+                access.badgeVariant === 'active'
+                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  : access.badgeVariant === 'warning'
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse'
+                    : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+              }`}
+              title="Gerenciar assinatura e planos"
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  access.badgeVariant === 'active'
+                    ? 'bg-emerald-400'
+                    : access.badgeVariant === 'warning'
+                      ? 'bg-amber-400'
+                      : 'bg-rose-400'
+                }`}
+              />
+              {access.label}
+            </Link>
             <Button
               variant="ghost"
               className="square-button"
               aria-label="Notificações"
-              onClick={() => toast('Nenhuma notificação por enquanto.')}
+              onClick={() => {
+                if (access.isExpiringSoon) {
+                  toast.warning(`Sua assinatura expira em ${access.formattedRemaining}.`);
+                } else if (!access.hasAccess) {
+                  toast.error('Sua assinatura está expirada. Renove na aba Planos.');
+                } else {
+                  toast.info(`Plano ${access.planName} ativo. Restam ${access.formattedRemaining}.`);
+                }
+              }}
             >
               <Bell />
             </Button>

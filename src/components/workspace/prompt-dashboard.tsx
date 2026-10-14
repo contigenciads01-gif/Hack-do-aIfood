@@ -35,6 +35,7 @@ import { brandPacks } from '@/data/brand-packs';
 import { PromptImage } from './prompt-image';
 import { BrainPanel, copyPrompt } from './brain-panel';
 import { ToolPage } from './pages';
+import { PlanGate } from './plan-gate';
 import {
   useCompany,
   usePromptDraft,
@@ -430,18 +431,18 @@ export function PromptDashboard({ toolId }: { toolId: string }) {
   const currentToolTitle = toolTitles[toolId] || toolId;
 
   return (
-    <ToolPage
-      title={currentToolTitle}
-      description="Seu próximo material começa com um bom prompt."
-      icon={Brain}
-    >
-      <div className="prompt-dashboard">
-        {/* ═══════ LEFT: DATA ═══════ */}
-        <section className="prompt-data">
-          <div className="pd-section-header">
-            <h2 className="section-title">Dados</h2>
-            <span className="example-label">Grátis</span>
-          </div>
+    <PlanGate toolTitle={currentToolTitle}>
+      <ToolPage
+        title={currentToolTitle}
+        description="Seu próximo material começa com um bom prompt."
+        icon={Brain}
+      >
+        <div className="prompt-dashboard">
+          {/* ═══════ LEFT: DATA ═══════ */}
+          <section className="prompt-data">
+            <div className="pd-section-header">
+              <h2 className="section-title">Dados</h2>
+            </div>
 
           {/* Format picker (imagem tool only) */}
           {toolId === 'imagem' && (
@@ -714,5 +715,6 @@ export function PromptDashboard({ toolId }: { toolId: string }) {
         </AlertDialogContent>
       </AlertDialog>
     </ToolPage>
+    </PlanGate>
   );
 }

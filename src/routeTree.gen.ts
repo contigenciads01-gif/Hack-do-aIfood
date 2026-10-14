@@ -15,7 +15,6 @@ import { Route as AvaliacoesRouteImport } from './routes/avaliacoes'
 import { Route as BrandingRouteImport } from './routes/branding'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as ContaRouteImport } from './routes/conta'
-import { Route as CreditosRouteImport } from './routes/creditos'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DescricaoRouteImport } from './routes/descricao'
 import { Route as EmpresaRouteImport } from './routes/empresa'
@@ -25,7 +24,10 @@ import { Route as ImagemRouteImport } from './routes/imagem'
 import { Route as InstagramRouteImport } from './routes/instagram'
 import { Route as MateriaisRouteImport } from './routes/materiais'
 import { Route as PaginaRouteImport } from './routes/pagina'
+import { Route as PlanosRouteImport } from './routes/planos'
 import { Route as PromocoesRouteImport } from './routes/promocoes'
+import { Route as TutorialRouteImport } from './routes/tutorial'
+import { Route as AdminAssinaturasRouteImport } from './routes/admin.assinaturas'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -55,11 +57,6 @@ const CadastroRoute = CadastroRouteImport.update({
 const ContaRoute = ContaRouteImport.update({
   id: '/conta',
   path: '/conta',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CreditosRoute = CreditosRouteImport.update({
-  id: '/creditos',
-  path: '/creditos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -107,9 +104,24 @@ const PaginaRoute = PaginaRouteImport.update({
   path: '/pagina',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlanosRoute = PlanosRouteImport.update({
+  id: '/planos',
+  path: '/planos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PromocoesRoute = PromocoesRouteImport.update({
   id: '/promocoes',
   path: '/promocoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TutorialRoute = TutorialRouteImport.update({
+  id: '/tutorial',
+  path: '/tutorial',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAssinaturasRoute = AdminAssinaturasRouteImport.update({
+  id: '/admin/assinaturas',
+  path: '/admin/assinaturas',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -120,7 +132,6 @@ export interface FileRoutesByFullPath {
   '/branding': typeof BrandingRoute
   '/cadastro': typeof CadastroRoute
   '/conta': typeof ContaRoute
-  '/creditos': typeof CreditosRoute
   '/dashboard': typeof DashboardRoute
   '/descricao': typeof DescricaoRoute
   '/empresa': typeof EmpresaRoute
@@ -130,7 +141,10 @@ export interface FileRoutesByFullPath {
   '/instagram': typeof InstagramRoute
   '/materiais': typeof MateriaisRoute
   '/pagina': typeof PaginaRoute
+  '/planos': typeof PlanosRoute
   '/promocoes': typeof PromocoesRoute
+  '/tutorial': typeof TutorialRoute
+  '/admin/assinaturas': typeof AdminAssinaturasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -139,7 +153,6 @@ export interface FileRoutesByTo {
   '/branding': typeof BrandingRoute
   '/cadastro': typeof CadastroRoute
   '/conta': typeof ContaRoute
-  '/creditos': typeof CreditosRoute
   '/dashboard': typeof DashboardRoute
   '/descricao': typeof DescricaoRoute
   '/empresa': typeof EmpresaRoute
@@ -149,7 +162,10 @@ export interface FileRoutesByTo {
   '/instagram': typeof InstagramRoute
   '/materiais': typeof MateriaisRoute
   '/pagina': typeof PaginaRoute
+  '/planos': typeof PlanosRoute
   '/promocoes': typeof PromocoesRoute
+  '/tutorial': typeof TutorialRoute
+  '/admin/assinaturas': typeof AdminAssinaturasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -159,7 +175,6 @@ export interface FileRoutesById {
   '/branding': typeof BrandingRoute
   '/cadastro': typeof CadastroRoute
   '/conta': typeof ContaRoute
-  '/creditos': typeof CreditosRoute
   '/dashboard': typeof DashboardRoute
   '/descricao': typeof DescricaoRoute
   '/empresa': typeof EmpresaRoute
@@ -169,7 +184,10 @@ export interface FileRoutesById {
   '/instagram': typeof InstagramRoute
   '/materiais': typeof MateriaisRoute
   '/pagina': typeof PaginaRoute
+  '/planos': typeof PlanosRoute
   '/promocoes': typeof PromocoesRoute
+  '/tutorial': typeof TutorialRoute
+  '/admin/assinaturas': typeof AdminAssinaturasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -180,7 +198,6 @@ export interface FileRouteTypes {
     | '/branding'
     | '/cadastro'
     | '/conta'
-    | '/creditos'
     | '/dashboard'
     | '/descricao'
     | '/empresa'
@@ -190,7 +207,10 @@ export interface FileRouteTypes {
     | '/instagram'
     | '/materiais'
     | '/pagina'
+    | '/planos'
     | '/promocoes'
+    | '/tutorial'
+    | '/admin/assinaturas'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -199,7 +219,6 @@ export interface FileRouteTypes {
     | '/branding'
     | '/cadastro'
     | '/conta'
-    | '/creditos'
     | '/dashboard'
     | '/descricao'
     | '/empresa'
@@ -209,7 +228,10 @@ export interface FileRouteTypes {
     | '/instagram'
     | '/materiais'
     | '/pagina'
+    | '/planos'
     | '/promocoes'
+    | '/tutorial'
+    | '/admin/assinaturas'
   id:
     | '__root__'
     | '/'
@@ -218,7 +240,6 @@ export interface FileRouteTypes {
     | '/branding'
     | '/cadastro'
     | '/conta'
-    | '/creditos'
     | '/dashboard'
     | '/descricao'
     | '/empresa'
@@ -228,7 +249,10 @@ export interface FileRouteTypes {
     | '/instagram'
     | '/materiais'
     | '/pagina'
+    | '/planos'
     | '/promocoes'
+    | '/tutorial'
+    | '/admin/assinaturas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -238,7 +262,6 @@ export interface RootRouteChildren {
   BrandingRoute: typeof BrandingRoute
   CadastroRoute: typeof CadastroRoute
   ContaRoute: typeof ContaRoute
-  CreditosRoute: typeof CreditosRoute
   DashboardRoute: typeof DashboardRoute
   DescricaoRoute: typeof DescricaoRoute
   EmpresaRoute: typeof EmpresaRoute
@@ -248,7 +271,10 @@ export interface RootRouteChildren {
   InstagramRoute: typeof InstagramRoute
   MateriaisRoute: typeof MateriaisRoute
   PaginaRoute: typeof PaginaRoute
+  PlanosRoute: typeof PlanosRoute
   PromocoesRoute: typeof PromocoesRoute
+  TutorialRoute: typeof TutorialRoute
+  AdminAssinaturasRoute: typeof AdminAssinaturasRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -293,13 +319,6 @@ declare module '@tanstack/react-router' {
       path: '/conta'
       fullPath: '/conta'
       preLoaderRoute: typeof ContaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/creditos': {
-      id: '/creditos'
-      path: '/creditos'
-      fullPath: '/creditos'
-      preLoaderRoute: typeof CreditosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -365,11 +384,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PaginaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/planos': {
+      id: '/planos'
+      path: '/planos'
+      fullPath: '/planos'
+      preLoaderRoute: typeof PlanosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/promocoes': {
       id: '/promocoes'
       path: '/promocoes'
       fullPath: '/promocoes'
       preLoaderRoute: typeof PromocoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tutorial': {
+      id: '/tutorial'
+      path: '/tutorial'
+      fullPath: '/tutorial'
+      preLoaderRoute: typeof TutorialRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/assinaturas': {
+      id: '/admin/assinaturas'
+      path: '/admin/assinaturas'
+      fullPath: '/admin/assinaturas'
+      preLoaderRoute: typeof AdminAssinaturasRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -382,7 +422,6 @@ const rootRouteChildren: RootRouteChildren = {
   BrandingRoute: BrandingRoute,
   CadastroRoute: CadastroRoute,
   ContaRoute: ContaRoute,
-  CreditosRoute: CreditosRoute,
   DashboardRoute: DashboardRoute,
   DescricaoRoute: DescricaoRoute,
   EmpresaRoute: EmpresaRoute,
@@ -392,7 +431,10 @@ const rootRouteChildren: RootRouteChildren = {
   InstagramRoute: InstagramRoute,
   MateriaisRoute: MateriaisRoute,
   PaginaRoute: PaginaRoute,
+  PlanosRoute: PlanosRoute,
   PromocoesRoute: PromocoesRoute,
+  TutorialRoute: TutorialRoute,
+  AdminAssinaturasRoute: AdminAssinaturasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

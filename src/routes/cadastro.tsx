@@ -14,6 +14,7 @@ import {
   Eye,
   Plus,
   X,
+  BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -1055,13 +1056,23 @@ function CadastroPage() {
               </div>
             </div>
 
-            <Button
-              className="w-full py-5 text-lg font-bold bg-[#EA1D2C] hover:bg-[#ff3b4b] shadow-xl shadow-[#EA1D2C]/25"
-              onClick={() => navigate({ to: '/dashboard' })}
-            >
-              Ir para o meu painel
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                className="flex-1 py-5 text-base sm:text-lg font-bold bg-[#EA1D2C] hover:bg-[#ff3b4b] shadow-xl shadow-[#EA1D2C]/25"
+                onClick={() => navigate({ to: '/dashboard' })}
+              >
+                Ir para o meu painel
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+              <Button
+                variant="outline"
+                className="py-5 text-base font-semibold border-white/20 hover:border-white/40"
+                onClick={() => navigate({ to: '/tutorial' })}
+              >
+                <BookOpen className="mr-2 h-5 w-5 text-[#EA1D2C]" />
+                Ver tutorial
+              </Button>
+            </div>
           </div>
         )}
       </main>

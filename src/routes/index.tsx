@@ -580,6 +580,14 @@ function LoginPage() {
                   Primeiro acesso
                 </button>
 
+                {/* Badge 7 dias grátis */}
+                <div className="flex items-center justify-center pt-0.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                    7 dias grátis para testar todos os recursos
+                  </span>
+                </div>
+
                 {/* Selo de Segurança */}
                 <div className="pt-2 flex items-center gap-2 text-xs text-white/45">
                   <Lock className="h-3.5 w-3.5 shrink-0 text-white/40" />
