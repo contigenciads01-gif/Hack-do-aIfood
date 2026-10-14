@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { PlaceholderPage } from '@/components/workspace/pages';
+import { FotoStudio } from '@/components/workspace/foto-studio';
 import { pageHead } from '@/data/mock';
+
 export const Route = createFileRoute('/foto')({
-  head: () => pageHead('Tirar foto do prato', 'Use a câmera ou envie a foto do prato.'),
-  component: () => <PlaceholderPage path="/foto"/>,
+  head: () =>
+    pageHead('Tirar foto do prato', 'Capture até 3 fotos por prato e organize tudo nos seus materiais.'),
+  component: () => <FotoStudio />,
 });
