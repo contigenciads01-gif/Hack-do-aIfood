@@ -57,6 +57,8 @@ import {
   useRenamePrato,
   useDeletePrato,
   useDeletePratoFoto,
+  validatePratoNome,
+  safeTrim,
   type Prato,
   type PratoFoto,
 } from '@/lib/data/pratos';
@@ -95,9 +97,11 @@ export function MateriaisExplorer({
   // Dialogs
   const [newPratoOpen, setNewPratoOpen] = useState(false);
   const [newPratoName, setNewPratoName] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [pratoToRename, setPratoToRename] = useState<Prato | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pratoToDelete, setPratoToDelete] = useState<Prato | null>(null);
 
@@ -123,36 +127,52 @@ export function MateriaisExplorer({
 
   const handleCreatePrato = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPratoName.trim()) {
-      toast.error('Informe o nome do prato.');
+    const validation = validatePratoNome(newPratoName, pratos);
+    if (!validation.valid) {
+      setCreateError(validation.error || 'Nome inválido.');
       return;
     }
+    setCreateError(null);
+
     try {
       const created = await createPratoMutation.mutateAsync({
-        nome: newPratoName.trim(),
+        nome: validation.trimmed,
       });
       toast.success(`Pasta "${created.nome}" criada com sucesso!`);
       setNewPratoName('');
+      setCreateError(null);
       setNewPratoOpen(false);
       setCurrentFolder(created.id);
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao criar prato.');
+      const msg = err.message || 'Erro ao criar prato.';
+      setCreateError(msg);
+      toast.warning(msg);
     }
   };
 
   const handleRename = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pratoToRename || !renameValue.trim()) return;
+    if (!pratoToRename) return;
+    const validation = validatePratoNome(renameValue, pratos, pratoToRename.id);
+    if (!validation.valid) {
+      setRenameError(validation.error || 'Nome inválido.');
+      return;
+    }
+    setRenameError(null);
+
     try {
       await renamePratoMutation.mutateAsync({
         id: pratoToRename.id,
-        novoNome: renameValue.trim(),
+        novoNome: validation.trimmed,
       });
       toast.success('Prato renomeado com sucesso.');
       setRenameOpen(false);
+      setRenameError(null);
       setPratoToRename(null);
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao renomear prato.');
+      const msg = err.message || 'Erro ao renomear prato.';
+      setRenameError(msg);
+      toast.warning(msg);
     }
   };
 
@@ -833,7 +853,13 @@ export function MateriaisExplorer({
       </div>
 
       {/* Dialog: Criar Novo Prato */}
-      <Dialog open={newPratoOpen} onOpenChange={setNewPratoOpen}>
+      <Dialog
+        open={newPratoOpen}
+        onOpenChange={(open) => {
+          setNewPratoOpen(open);
+          if (!open) setCreateError(null);
+        }}
+      >
         <DialogContent className="border-white/15 bg-[#141414] text-white max-w-md">
           <DialogHeader>
             <DialogTitle>Criar nova pasta de prato</DialogTitle>
@@ -845,16 +871,26 @@ export function MateriaisExplorer({
           <form onSubmit={handleCreatePrato} className="space-y-4 pt-2">
             <div>
               <label className="text-xs font-semibold text-white/70 uppercase">
-                Nome do prato
+                Nome do prato *
               </label>
               <input
                 type="text"
                 value={newPratoName}
-                onChange={(e) => setNewPratoName(e.target.value)}
+                onChange={(e) => {
+                  setNewPratoName(e.target.value);
+                  if (createError) setCreateError(null);
+                }}
                 placeholder="Ex.: Smash Burger Duplo"
                 autoFocus
-                className="mt-1.5 w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#EA1D2C] focus:outline-none"
+                className={`mt-1.5 w-full rounded-xl border bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none ${
+                  createError
+                    ? 'border-rose-500 focus:border-rose-500'
+                    : 'border-white/15 focus:border-[#EA1D2C]'
+                }`}
               />
+              {createError && (
+                <p className="text-xs text-rose-400 font-medium mt-1">{createError}</p>
+              )}
             </div>
 
             <DialogFooter className="gap-2 sm:gap-0">
@@ -875,21 +911,37 @@ export function MateriaisExplorer({
       </Dialog>
 
       {/* Dialog: Renomear Prato */}
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+      <Dialog
+        open={renameOpen}
+        onOpenChange={(open) => {
+          setRenameOpen(open);
+          if (!open) setRenameError(null);
+        }}
+      >
         <DialogContent className="border-white/15 bg-[#141414] text-white max-w-md">
           <DialogHeader>
             <DialogTitle>Renomear prato</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleRename} className="space-y-4 pt-2">
             <div>
-              <label className="text-xs font-semibold text-white/70 uppercase">Novo nome</label>
+              <label className="text-xs font-semibold text-white/70 uppercase">Novo nome *</label>
               <input
                 type="text"
                 value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
+                onChange={(e) => {
+                  setRenameValue(e.target.value);
+                  if (renameError) setRenameError(null);
+                }}
                 autoFocus
-                className="mt-1.5 w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white focus:border-[#EA1D2C] focus:outline-none"
+                className={`mt-1.5 w-full rounded-xl border bg-black/50 px-4 py-3 text-sm text-white focus:outline-none ${
+                  renameError
+                    ? 'border-rose-500 focus:border-rose-500'
+                    : 'border-white/15 focus:border-[#EA1D2C]'
+                }`}
               />
+              {renameError && (
+                <p className="text-xs text-rose-400 font-medium mt-1">{renameError}</p>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setRenameOpen(false)}>

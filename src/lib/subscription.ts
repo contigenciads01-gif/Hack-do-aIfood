@@ -129,7 +129,7 @@ export function useSubscription() {
     queryKey: ['user_role_admin', user?.id],
     queryFn: async () => {
       if (!user?.id) return false;
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
@@ -152,9 +152,9 @@ export function useSubscription() {
     refetch,
   } = useQuery({
     queryKey: ['user_subscription', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<SubscriptionRecord | null> => {
       if (!user?.id) return null;
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('subscriptions')
         .select('*')
         .eq('user_id', user.id)
@@ -178,7 +178,7 @@ export function useSubscription() {
         // Automatically try to seed experimental trial if no subscription row exists
         const now = new Date();
         const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const { data: newSub } = await supabase
+        const { data: newSub } = await (supabase as any)
           .from('subscriptions')
           .insert({
             user_id: user.id,
@@ -191,7 +191,7 @@ export function useSubscription() {
           .select()
           .single();
 
-        return newSub || {
+        return (newSub as SubscriptionRecord) || {
           plano: 'experimental' as PlanId,
           status: 'ativo' as const,
           inicio: now.toISOString(),

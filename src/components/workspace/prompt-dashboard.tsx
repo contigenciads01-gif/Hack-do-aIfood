@@ -336,7 +336,7 @@ export function PromptDashboard({ toolId }: { toolId: string }) {
   const { prato: selectedPrato, fotos } = usePrato(selectedPratoId || undefined);
 
   const bestPhotoUrl =
-    (fotos && fotos.length > 0 ? (fotos[0].signed_url || fotos[0].storage_path) : '') ||
+    (fotos && fotos.length > 0 ? (fotos[0]?.signed_url || fotos[0]?.storage_path || '') : '') ||
     image ||
     '';
 
@@ -610,7 +610,7 @@ export function PromptDashboard({ toolId }: { toolId: string }) {
                           {fotos.length} de 3 fotos tiradas deste prato:
                         </p>
                         <div className="grid grid-cols-3 gap-2">
-                          {fotos.map((f) => (
+                          {fotos.map((f: any) => (
                             <div
                               key={f.id}
                               className="relative aspect-square rounded-xl overflow-hidden border border-white/10 bg-black/40"

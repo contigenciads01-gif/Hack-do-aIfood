@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   calculatePratoChecklist,
   validatePhotoSlot,
+  validatePratoNome,
+  safeTrim,
   type PratoFoto,
 } from './pratos';
 
@@ -101,5 +103,98 @@ describe('Cálculo de Prato Pronto com 4 Marcas de Conferência', () => {
     expect(checklist.tem_descricao).toBe(true);
     expect(checklist.tem_anuncio).toBe(false);
     expect(checklist.pronto).toBe(false);
+  });
+});
+
+describe('Helper safeTrim', () => {
+  it('retorna string sem espaços nas pontas quando recebe string válida', () => {
+    expect(safeTrim('  Smash Burger  ')).toBe('Smash Burger');
+  });
+
+  it('retorna string vazia para undefined ou null', () => {
+    expect(safeTrim(undefined)).toBe('');
+    expect(safeTrim(null)).toBe('');
+  });
+
+  it('retorna string vazia para valores não-string (número, boolean, objeto)', () => {
+    expect(safeTrim(123)).toBe('');
+    expect(safeTrim(true)).toBe('');
+    expect(safeTrim({ nome: 'Burger' })).toBe('');
+    expect(safeTrim([])).toBe('');
+  });
+});
+
+describe('Validação do Nome do Prato (validatePratoNome)', () => {
+  const existingPratos = [
+    { id: 'p1', nome: 'Smash Burger' },
+    { id: 'p2', nome: 'Pizza Margherita' },
+  ];
+
+  it('recusa nome vazio ou apenas espaços', () => {
+    const resEmpty = validatePratoNome('');
+    expect(resEmpty.valid).toBe(false);
+    expect(resEmpty.error).toBe('O nome do prato é obrigatório.');
+
+    const resSpaces = validatePratoNome('     ');
+    expect(resSpaces.valid).toBe(false);
+    expect(resSpaces.error).toBe('O nome do prato é obrigatório.');
+  });
+
+  it('recusa undefined e null com segurança sem quebrar', () => {
+    const resUndefined = validatePratoNome(undefined);
+    expect(resUndefined.valid).toBe(false);
+    expect(resUndefined.error).toBe('O nome do prato é obrigatório.');
+
+    const resNull = validatePratoNome(null);
+    expect(resNull.valid).toBe(false);
+    expect(resNull.error).toBe('O nome do prato é obrigatório.');
+  });
+
+  it('recusa nome com menos de 2 caracteres', () => {
+    const res = validatePratoNome('A');
+    expect(res.valid).toBe(false);
+    expect(res.error).toBe('O nome deve ter pelo menos 2 caracteres.');
+  });
+
+  it('aceita nome no limite inferior de 2 caracteres', () => {
+    const res = validatePratoNome('X1');
+    expect(res.valid).toBe(true);
+    expect(res.trimmed).toBe('X1');
+  });
+
+  it('aceita nome no limite superior de 60 caracteres', () => {
+    const nome60 = 'A'.repeat(60);
+    const res = validatePratoNome(nome60);
+    expect(res.valid).toBe(true);
+    expect(res.trimmed).toBe(nome60);
+  });
+
+  it('recusa nome com mais de 60 caracteres', () => {
+    const nome61 = 'A'.repeat(61);
+    const res = validatePratoNome(nome61);
+    expect(res.valid).toBe(false);
+    expect(res.error).toBe('O nome deve ter no máximo 60 caracteres.');
+  });
+
+  it('recusa nome duplicado ignorando maiúsculas e minúsculas', () => {
+    const resLower = validatePratoNome('smash burger', existingPratos);
+    expect(resLower.valid).toBe(false);
+    expect(resLower.error).toBe('Você já tem um prato com esse nome.');
+
+    const resUpper = validatePratoNome('SMASH BURGER', existingPratos);
+    expect(resUpper.valid).toBe(false);
+    expect(resUpper.error).toBe('Você já tem um prato com esse nome.');
+  });
+
+  it('permite manter o mesmo nome ao renomear o próprio prato', () => {
+    const res = validatePratoNome('Smash Burger', existingPratos, 'p1');
+    expect(res.valid).toBe(true);
+    expect(res.trimmed).toBe('Smash Burger');
+  });
+
+  it('aceita nome novo e devidamente formatado', () => {
+    const res = validatePratoNome('  Batata Frita Rústica  ', existingPratos);
+    expect(res.valid).toBe(true);
+    expect(res.trimmed).toBe('Batata Frita Rústica');
   });
 });

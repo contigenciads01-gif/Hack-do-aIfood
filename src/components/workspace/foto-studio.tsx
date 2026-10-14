@@ -24,12 +24,14 @@ import {
   useSavePratoFoto,
   useDeletePratoFoto,
   validatePhotoSlot,
+  validatePratoNome,
+  safeTrim,
   type Prato,
   type PratoFoto,
 } from '@/lib/data/pratos';
 import { PlanGate } from '@/components/workspace/plan-gate';
 
-export function FotoStudio() {
+export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {}) {
   const navigate = useNavigate();
   const { data: pratos = [], isLoading: loadingPratos } = usePratos();
   const createPratoMutation = useCreatePrato();
@@ -39,10 +41,13 @@ export function FotoStudio() {
   // Step 1: Prato Selection / Creation
   const [selectedPratoId, setSelectedPratoId] = useState<string>('');
   const [newPratoNome, setNewPratoNome] = useState<string>('');
+  const [step1Error, setStep1Error] = useState<string | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
 
   // Active camera modal state
   const [cameraActive, setCameraActive] = useState(false);
+  const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [activeSlot, setActiveSlot] = useState<1 | 2 | 3>(1);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -55,65 +60,123 @@ export function FotoStudio() {
 
   const selectedPrato = pratos.find((p) => p.id === selectedPratoId);
 
-  // Auto-select first prato if available and not yet set
+  // Initial prato check (from prop, sessionStorage or first available)
   useEffect(() => {
-    if (!selectedPratoId && pratos.length > 0) {
+    const targetId = initialPratoId || sessionStorage.getItem('hdi_target_prato_id');
+    if (targetId) {
+      sessionStorage.removeItem('hdi_target_prato_id');
+      setSelectedPratoId(targetId);
+      setStep(2);
+    } else if (!selectedPratoId && pratos.length > 0) {
       setSelectedPratoId(pratos[0]?.id || '');
     }
-  }, [pratos, selectedPratoId]);
+  }, [initialPratoId, pratos, selectedPratoId]);
+
+  // Connect stream to video element when active and mounted
+  useEffect(() => {
+    if (cameraActive && activeStream && videoRef.current) {
+      const video = videoRef.current;
+      video.srcObject = activeStream;
+      video.play().catch((err) => {
+        console.warn('Erro ao reproduzir vídeo da câmera:', err);
+      });
+    }
+  }, [cameraActive, activeStream]);
+
+  // Stop camera tracks on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
 
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPratoNome.trim()) {
+    const trimmedNew = safeTrim(newPratoNome);
+
+    if (trimmedNew) {
+      const validation = validatePratoNome(trimmedNew, pratos);
+      if (!validation.valid) {
+        setStep1Error(validation.error || 'Nome inválido');
+        return;
+      }
+      setStep1Error(null);
+
       try {
         const created = await createPratoMutation.mutateAsync({
-          nome: newPratoNome.trim(),
+          nome: validation.trimmed,
         });
         setSelectedPratoId(created.id);
         setNewPratoNome('');
         setStep(2);
         toast.success(`Prato "${created.nome}" selecionado!`);
       } catch (err: any) {
-        toast.error(err.message || 'Erro ao criar prato.');
+        setStep1Error(err.message || 'Erro ao criar prato.');
       }
     } else if (selectedPratoId) {
+      setStep1Error(null);
       setStep(2);
     } else {
-      toast.error('Escolha um prato ou digite um novo nome.');
+      setStep1Error('Escolha um prato ou digite um novo nome.');
     }
   };
 
   // ─── Camera streaming & capture ───
   const startCamera = async (slot: 1 | 2 | 3) => {
     setActiveSlot(slot);
+    setCameraError(null);
+
+    const hasMediaDevices =
+      typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+
+    if (!hasMediaDevices) {
+      toast.info('Câmera direta indisponível neste navegador ou rede. Usando captura de foto do aparelho.');
+      fallbackCameraRef.current?.click();
+      return;
+    }
+
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        fallbackCameraRef.current?.click();
-        return;
+      let stream: MediaStream;
+      try {
+        // Tenta câmera traseira (ideal: "environment")
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+          },
+          audio: false,
+        });
+      } catch (err: any) {
+        if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+          // Fallback para qualquer vídeo disponível
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        } else {
+          throw err;
+        }
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
-
       streamRef.current = stream;
+      setActiveStream(stream);
       setCameraActive(true);
+    } catch (err: any) {
+      console.warn('Camera access error:', err);
+      let message = 'Não foi possível acessar a câmera.';
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        message = 'Permita o acesso à câmera para continuar';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        message = 'Nenhuma câmera encontrada no seu aparelho.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        message = 'A câmera está em uso por outro aplicativo.';
+      } else if (err.name === 'SecurityError') {
+        message = 'O acesso à câmera requer conexão segura (HTTPS).';
+      }
 
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch((err) => console.warn('Play error:', err));
-        }
-      }, 100);
-    } catch (err) {
-      console.warn('getUserMedia error, falling back to file input:', err);
-      toast.info('Abrindo câmera do dispositivo...');
-      fallbackCameraRef.current?.click();
+      toast.error(message);
+      setCameraError(message);
     }
   };
 
@@ -122,6 +185,7 @@ export function FotoStudio() {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    setActiveStream(null);
     setCameraActive(false);
   };
 
@@ -259,15 +323,25 @@ export function FotoStudio() {
               {/* Or New Dish */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-white/70">
-                  {pratos.length > 0 ? 'Ou cadastrar novo prato' : 'Nome do prato'}
+                  {pratos.length > 0 ? 'Ou cadastrar novo prato' : 'Nome do prato *'}
                 </label>
                 <input
                   type="text"
                   value={newPratoNome}
-                  onChange={(e) => setNewPratoNome(e.target.value)}
+                  onChange={(e) => {
+                    setNewPratoNome(e.target.value);
+                    if (step1Error) setStep1Error(null);
+                  }}
                   placeholder="Ex.: Smash Burger Duplo com Fritas"
-                  className="w-full rounded-2xl border border-white/15 bg-black/50 p-4 text-base text-white placeholder:text-white/30 focus:border-[#EA1D2C] focus:outline-none"
+                  className={`w-full rounded-2xl border bg-black/50 p-4 text-base text-white placeholder:text-white/30 focus:outline-none ${
+                    step1Error
+                      ? 'border-rose-500 focus:border-rose-500'
+                      : 'border-white/15 focus:border-[#EA1D2C]'
+                  }`}
                 />
+                {step1Error && (
+                  <p className="text-xs text-rose-400 font-medium mt-1">{step1Error}</p>
+                )}
               </div>
 
               <Button
@@ -307,6 +381,56 @@ export function FotoStudio() {
                 </Button>
               </div>
             </div>
+
+            {/* Camera Error / Permission denied Banner */}
+            {cameraError && (
+              <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/20 text-rose-400">
+                    <AlertCircle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-rose-200">{cameraError}</p>
+                    <p className="text-xs text-zinc-400">
+                      Você pode permitir o acesso e tentar novamente ou enviar a foto da sua galeria.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setCameraError(null);
+                      startCamera(activeSlot);
+                    }}
+                    className="h-8 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white border border-white/10"
+                  >
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    Tentar de novo
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      fallbackCameraRef.current?.click();
+                    }}
+                    className="h-8 rounded-xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-xs font-bold text-white shadow-sm"
+                  >
+                    <Upload className="mr-1.5 h-3.5 w-3.5" />
+                    Enviar da galeria
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setCameraError(null)}
+                    className="text-white/50 hover:text-white p-1 ml-1 cursor-pointer"
+                    aria-label="Fechar aviso"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* 3 Numbered Photo Cards */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -478,14 +602,29 @@ export function FotoStudio() {
               <span className="text-xs font-bold text-white uppercase tracking-wider">
                 Foto {activeSlot} · {selectedPrato?.nome}
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={stopCamera}
-                className="h-9 w-9 p-0 text-white"
-              >
-                <X className="h-6 w-6" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    stopCamera();
+                    fallbackCameraRef.current?.click();
+                  }}
+                  className="h-8 text-xs rounded-xl border-white/20 text-white hover:bg-white/10"
+                >
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  Enviar da galeria
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={stopCamera}
+                  className="h-9 w-9 p-0 text-white"
+                >
+                  <X className="h-6 w-6" />
+                </Button>
+              </div>
             </div>
 
             {/* Live Video Feed */}

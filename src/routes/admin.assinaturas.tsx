@@ -44,7 +44,7 @@ export function AdminAssinaturasPage() {
   } = useQuery({
     queryKey: ['admin_subscriptions_list'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('subscriptions')
         .select('*')
         .order('criado_em', { ascending: false })

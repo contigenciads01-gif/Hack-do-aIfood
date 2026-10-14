@@ -31,7 +31,9 @@ import {
   usePratos,
   useCreatePrato,
   calculatePratoChecklist,
+  validatePratoNome,
   type Prato,
+  type PratoFoto,
 } from '@/lib/data/pratos';
 import { useMaterials, type DbMaterial } from '@/lib/data/materials';
 import { useTutorialProgress } from '@/lib/tutorial-progress';
@@ -60,6 +62,7 @@ function DashboardPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newPratoNome, setNewPratoNome] = useState('');
+  const [pratoError, setPratoError] = useState<string | null>(null);
   const [selectedPrato, setSelectedPrato] = useState<Prato | null>(null);
 
   // Greeting
@@ -69,8 +72,9 @@ function DashboardPage() {
   // Calculate progress for each dish
   const dishesWithStatus = useMemo(() => {
     return pratos.map((p) => {
-      const checklist = calculatePratoChecklist(p.prato_fotos || [], materials, p.id);
-      const coverPhoto = p.prato_fotos?.find((f) => f.slot === 1) || p.prato_fotos?.[0];
+      const photos = p.prato_fotos || p.fotos || [];
+      const checklist = calculatePratoChecklist(photos, materials, p.id);
+      const coverPhoto = photos.find((f: PratoFoto) => f.slot === 1) || photos[0];
       return {
         ...p,
         checklist,
@@ -172,18 +176,26 @@ function DashboardPage() {
 
   const handleCreatePrato = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPratoNome.trim()) {
-      toast.error('Informe o nome do prato.');
+    const validation = validatePratoNome(newPratoNome, pratos);
+    if (!validation.valid) {
+      setPratoError(validation.error || 'Nome inválido.');
       return;
     }
+    setPratoError(null);
 
     try {
-      const created = await createPratoMutation.mutateAsync(newPratoNome.trim());
+      const created = await createPratoMutation.mutateAsync({ nome: validation.trimmed });
       toast.success(`Prato "${created.nome}" adicionado com sucesso!`);
       setNewPratoNome('');
+      setPratoError(null);
       setCreateOpen(false);
+      // Ao criar, vá para o passo das fotos
+      sessionStorage.setItem('hdi_target_prato_id', created.id);
+      navigate({ to: '/foto' });
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao cadastrar prato.');
+      const msg = err.message || 'Não foi possível cadastrar o prato.';
+      setPratoError(msg);
+      toast.warning(msg);
     }
   };
 
@@ -465,8 +477,15 @@ function DashboardPage() {
           </div>
         </main>
 
-        {/* Modal: Novo Prato */}
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <Dialog
+          open={createOpen}
+          onOpenChange={(open) => {
+            setCreateOpen(open);
+            if (!open) {
+              setPratoError(null);
+            }
+          }}
+        >
           <DialogContent className="border-white/15 bg-[#161618] text-white max-w-md">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold flex items-center gap-2">
@@ -486,12 +505,21 @@ function DashboardPage() {
                 <input
                   type="text"
                   autoFocus
-                  required
                   placeholder="Ex: Smash Burger Duplo com Queijo"
                   value={newPratoNome}
-                  onChange={(e) => setNewPratoNome(e.target.value)}
-                  className="w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-[#EA1D2C] focus:outline-hidden"
+                  onChange={(e) => {
+                    setNewPratoNome(e.target.value);
+                    if (pratoError) setPratoError(null);
+                  }}
+                  className={`w-full rounded-xl border bg-white/5 px-3 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-hidden ${
+                    pratoError
+                      ? 'border-rose-500 focus:border-rose-500'
+                      : 'border-white/20 focus:border-[#EA1D2C]'
+                  }`}
                 />
+                {pratoError && (
+                  <p className="text-xs text-rose-400 mt-1 font-medium">{pratoError}</p>
+                )}
               </div>
 
               <DialogFooter className="gap-2 sm:gap-0 pt-2">
@@ -558,7 +586,9 @@ function DashboardPage() {
 
                     <div className="grid grid-cols-3 gap-2">
                       {[1, 2, 3].map((slot) => {
-                        const foto = selectedPrato.prato_fotos?.find((f) => f.slot === slot);
+                        const foto = (selectedPrato.prato_fotos || selectedPrato.fotos)?.find(
+                          (f: PratoFoto) => f.slot === slot,
+                        );
                         const label = slot === 1 ? 'De cima' : slot === 2 ? 'De lado' : 'Detalhe';
 
                         return (

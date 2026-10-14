@@ -12,6 +12,7 @@ export interface PratoFoto {
   storage_path: string;
   criado_em: string;
   url?: string;
+  signed_url?: string;
 }
 
 export interface PratoChecklist {
@@ -20,6 +21,11 @@ export interface PratoChecklist {
   tem_descricao: boolean;
   tem_anuncio: boolean;
   pronto: boolean;
+  hasFoto: boolean;
+  hasImagem: boolean;
+  hasDescricao: boolean;
+  hasAnuncio: boolean;
+  isComplete: boolean;
 }
 
 export interface Prato {
@@ -28,6 +34,7 @@ export interface Prato {
   nome: string;
   criado_em: string;
   fotos: PratoFoto[];
+  prato_fotos?: PratoFoto[];
   materiais?: DbMaterial[];
   checklist?: PratoChecklist;
 }
@@ -35,31 +42,107 @@ export interface Prato {
 const LOCAL_PRATOS_KEY = 'hdi_pratos';
 const LOCAL_FOTOS_KEY = 'hdi_prato_fotos';
 
+import { safeTrim } from '@/lib/utils';
+export { safeTrim };
+
+export interface PratoValidationResult {
+  valid: boolean;
+  error?: string;
+  trimmed: string;
+}
+
+/**
+ * Pure function: validates prato name.
+ * Mandatory, 2 to 60 characters, no duplicates in existing pratos.
+ */
+export function validatePratoNome(
+  nome: unknown,
+  existingPratos?: Array<{ id?: string; nome?: string | null }> | null,
+  currentPratoId?: string,
+): PratoValidationResult {
+  const trimmed = safeTrim(nome);
+
+  if (!trimmed) {
+    return {
+      valid: false,
+      error: 'O nome do prato é obrigatório.',
+      trimmed: '',
+    };
+  }
+
+  if (trimmed.length < 2) {
+    return {
+      valid: false,
+      error: 'O nome deve ter pelo menos 2 caracteres.',
+      trimmed,
+    };
+  }
+
+  if (trimmed.length > 60) {
+    return {
+      valid: false,
+      error: 'O nome deve ter no máximo 60 caracteres.',
+      trimmed,
+    };
+  }
+
+  if (existingPratos && existingPratos.length > 0) {
+    const isDuplicate = existingPratos.some((p) => {
+      if (currentPratoId && p.id === currentPratoId) return false;
+      return safeTrim(p.nome).toLowerCase() === trimmed.toLowerCase();
+    });
+
+    if (isDuplicate) {
+      return {
+        valid: false,
+        error: 'Você já tem um prato com esse nome.',
+        trimmed,
+      };
+    }
+  }
+
+  return {
+    valid: true,
+    trimmed,
+  };
+}
+
 /**
  * Pure function: calculates the 4 completion checklist badges for a prato.
  * A prato is "pronto" when it has at least 1 photo AND generated materials for image, description, and ad.
  */
 export function calculatePratoChecklist(
   fotos: PratoFoto[] = [],
-  materiais: { tool?: string; tipo?: string }[] = [],
+  materiais: { tool?: string; tipo?: string | null; prato_id?: string | null }[] = [],
+  pratoId?: string,
 ): PratoChecklist {
+  const mats = pratoId
+    ? materiais.filter((m) => !m.prato_id || m.prato_id === pratoId)
+    : materiais;
+
   const tem_foto = fotos.length > 0;
-  const tem_imagem = materiais.some(
+  const tem_imagem = mats.some(
     (m) => m.tool === 'imagem' || m.tipo === 'imagem' || m.tool === 'T1' || m.tool === 'T2',
   );
-  const tem_descricao = materiais.some(
+  const tem_descricao = mats.some(
     (m) => m.tool === 'descricao' || m.tipo === 'descricao' || m.tool === 'T5',
   );
-  const tem_anuncio = materiais.some(
+  const tem_anuncio = mats.some(
     (m) => m.tool === 'anuncios' || m.tipo === 'anuncio' || m.tool === 'T_STORY' || m.tool === 'T_CARROSSEL',
   );
+  const pronto = tem_foto && tem_imagem && tem_descricao && tem_anuncio;
 
   return {
     tem_foto,
     tem_imagem,
     tem_descricao,
     tem_anuncio,
-    pronto: tem_foto && tem_imagem && tem_descricao && tem_anuncio,
+    pronto,
+    hasFoto: tem_foto,
+    hasImagem: tem_imagem,
+    hasDescricao: tem_descricao,
+    hasAnuncio: tem_anuncio,
+    isComplete: pronto,
   };
 }
 
@@ -129,7 +212,7 @@ export function usePratos() {
 
       try {
         // 1. Fetch pratos
-        const { data: pratosData, error: pratosError } = await supabase
+        const { data: pratosData, error: pratosError } = await (supabase as any)
           .from('pratos')
           .select('*')
           .eq('user_id', user.id)
@@ -146,7 +229,7 @@ export function usePratos() {
         }
 
         // 2. Fetch fotos
-        const { data: fotosData } = await supabase
+        const { data: fotosData } = await (supabase as any)
           .from('prato_fotos')
           .select('*')
           .eq('user_id', user.id);
@@ -159,7 +242,7 @@ export function usePratos() {
 
         // Sign photo URLs in parallel
         const fotosWithUrls: PratoFoto[] = await Promise.all(
-          (fotosData || []).map(async (f) => {
+          (fotosData || []).map(async (f: any) => {
             const url = await getSignedPhotoUrl(f.storage_path);
             return {
               id: f.id,
@@ -169,11 +252,12 @@ export function usePratos() {
               storage_path: f.storage_path,
               criado_em: f.criado_em,
               url,
+              signed_url: url,
             };
           }),
         );
 
-        const pratosList: Prato[] = pratosData.map((p) => {
+        const pratosList: Prato[] = pratosData.map((p: any) => {
           const pratoFotos = fotosWithUrls
             .filter((f) => f.prato_id === p.id)
             .sort((a, b) => a.slot - b.slot);
@@ -190,6 +274,7 @@ export function usePratos() {
             nome: p.nome,
             criado_em: p.criado_em,
             fotos: pratoFotos,
+            prato_fotos: pratoFotos,
             checklist,
           };
         });
@@ -211,7 +296,12 @@ export function usePratos() {
 export function usePrato(id?: string) {
   const { data: pratos = [], isLoading } = usePratos();
   const prato = pratos.find((p) => p.id === id);
-  return { data: prato, isLoading };
+  return {
+    data: prato,
+    prato,
+    fotos: prato?.fotos || prato?.prato_fotos || [],
+    isLoading,
+  };
 }
 
 /**
@@ -222,16 +312,20 @@ export function useCreatePrato() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ nome }: { nome: string }): Promise<Prato> => {
-      const trimmedNome = nome.trim();
-      if (!trimmedNome) throw new Error('O nome do prato é obrigatório.');
+    mutationFn: async (input: string | { nome?: string }): Promise<Prato> => {
+      const rawNome = typeof input === 'string' ? input : input?.nome;
+      const validation = validatePratoNome(rawNome);
+      if (!validation.valid) {
+        throw new Error(validation.error || 'O nome do prato é obrigatório.');
+      }
+      const trimmedNome = validation.trimmed;
 
       const userId = user?.id || 'guest';
       const id = crypto.randomUUID();
       const criado_em = new Date().toISOString();
 
       if (user?.id) {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from('pratos')
           .insert({
             id,
@@ -243,9 +337,10 @@ export function useCreatePrato() {
 
         if (error) {
           if (error.code === '23505') {
-            throw new Error(`Já existe um prato com o nome "${trimmedNome}". Escolha um nome diferente.`);
+            throw new Error('Você já tem um prato com esse nome.');
           }
-          throw error;
+          console.warn('Supabase pratos insert warning:', error);
+          throw new Error('Não foi possível salvar o prato agora. Tente novamente em instantes.');
         }
 
         return {
@@ -269,8 +364,8 @@ export function useCreatePrato() {
       };
 
       const cached: Prato[] = JSON.parse(localStorage.getItem(LOCAL_PRATOS_KEY) || '[]');
-      if (cached.some((p) => p.nome.toLowerCase() === trimmedNome.toLowerCase())) {
-        throw new Error(`Já existe um prato com o nome "${trimmedNome}". Escolha um nome diferente.`);
+      if (cached.some((p) => safeTrim(p.nome).toLowerCase() === trimmedNome.toLowerCase())) {
+        throw new Error('Você já tem um prato com esse nome.');
       }
       cached.unshift(offlinePrato);
       localStorage.setItem(LOCAL_PRATOS_KEY, JSON.stringify(cached));
@@ -291,11 +386,14 @@ export function useRenamePrato() {
 
   return useMutation({
     mutationFn: async ({ id, novoNome }: { id: string; novoNome: string }) => {
-      const trimmed = novoNome.trim();
-      if (!trimmed) throw new Error('O nome não pode ficar vazio.');
+      const validation = validatePratoNome(novoNome);
+      if (!validation.valid) {
+        throw new Error(validation.error || 'Nome inválido.');
+      }
+      const trimmed = validation.trimmed;
 
       if (user?.id) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('pratos')
           .update({ nome: trimmed })
           .eq('id', id)
@@ -303,11 +401,15 @@ export function useRenamePrato() {
 
         if (error) {
           if (error.code === '23505') {
-            throw new Error(`Já existe um prato com o nome "${trimmed}".`);
+            throw new Error('Você já tem um prato com esse nome.');
           }
-          throw error;
+          throw new Error('Não foi possível renomear o prato agora.');
         }
       }
+
+      const cached: Prato[] = JSON.parse(localStorage.getItem(LOCAL_PRATOS_KEY) || '[]');
+      const updated = cached.map((p) => (p.id === id ? { ...p, nome: trimmed } : p));
+      localStorage.setItem(LOCAL_PRATOS_KEY, JSON.stringify(updated));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pratos'] });
@@ -325,7 +427,7 @@ export function useDeletePrato() {
   return useMutation({
     mutationFn: async (id: string) => {
       if (user?.id) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('pratos')
           .delete()
           .eq('id', id)
@@ -384,7 +486,7 @@ export function useSavePratoFoto() {
         }
 
         // Upsert into prato_fotos table
-        const { data: fotoRecord, error: dbError } = await supabase
+        const { data: fotoRecord, error: dbError } = await (supabase as any)
           .from('prato_fotos')
           .upsert(
             {
@@ -443,7 +545,7 @@ export function useDeletePratoFoto() {
           }
         }
 
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('prato_fotos')
           .delete()
           .eq('id', fotoId)
