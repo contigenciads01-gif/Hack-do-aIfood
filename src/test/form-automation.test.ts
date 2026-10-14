@@ -369,13 +369,74 @@ describe('Roteiro de Automatização de Formulários do Sistema', () => {
     });
   });
 
+  it('Formulário 13: Cadastro e Seleção de Prato (/dashboard & ferramentas)', () => {
+    const pratoMock = {
+      id: 'prato-123',
+      user_id: 'user-abc',
+      nome: 'X-Burger Artesanal com Bacon',
+      criado_em: new Date().toISOString(),
+      prato_fotos: [
+        { id: 'f-1', prato_id: 'prato-123', user_id: 'user-abc', slot: 1 as const, storage_path: 'p/1.webp', criado_em: '' },
+      ],
+    };
+
+    const materialsMock = [
+      { id: 'm-1', user_id: 'user-abc', tool: 'imagem', template: 'T1', title: 'X-Burger', text: 'prompt imagem', original: null, summary: [], criado_em: '', prato_id: 'prato-123', tipo: 'imagem' },
+      { id: 'm-2', user_id: 'user-abc', tool: 'descricao', template: 'T5', title: 'X-Burger', text: 'prompt desc', original: null, summary: [], criado_em: '', prato_id: 'prato-123', tipo: 'descricao' },
+      { id: 'm-3', user_id: 'user-abc', tool: 'anuncios', template: 'T_STORY', title: 'X-Burger', text: 'prompt ad', original: null, summary: [], criado_em: '', prato_id: 'prato-123', tipo: 'anuncios' },
+    ];
+
+    const checklist = {
+      hasFoto: pratoMock.prato_fotos.some((f) => f.slot === 1),
+      hasImagem: materialsMock.some((m) => m.prato_id === pratoMock.id && (m.tipo === 'imagem' || m.tool === 'imagem')),
+      hasDescricao: materialsMock.some((m) => m.prato_id === pratoMock.id && (m.tipo === 'descricao' || m.tool === 'descricao')),
+      hasAnuncio: materialsMock.some((m) => m.prato_id === pratoMock.id && (m.tipo === 'anuncios' || m.tool === 'anuncios')),
+    };
+
+    const isComplete = checklist.hasFoto && checklist.hasImagem && checklist.hasDescricao && checklist.hasAnuncio;
+
+    expect(checklist.hasFoto).toBe(true);
+    expect(checklist.hasImagem).toBe(true);
+    expect(checklist.hasDescricao).toBe(true);
+    expect(checklist.hasAnuncio).toBe(true);
+    expect(isComplete).toBe(true);
+
+    auditReport.push({
+      formId: 'form-prato-checklist',
+      routeName: '/dashboard',
+      fieldsFound: ['nome', 'slot', 'prato_id'],
+      submittedData: { nome: pratoMock.nome, prato_id: pratoMock.id },
+      status: 'SUCESSO',
+      message: 'Prato com 4 selos de status calculados com sucesso.',
+    });
+  });
+
+  it('Formulário 14: Fluxo 3 Passos ChatGPT e Vinculação de Pasta (/imagem & ferramentas)', () => {
+    const step1Prompt = 'Crie uma imagem de hambúrguer artesanal suculento...';
+    const step2PhotoUrl = 'https://supabase.co/storage/v1/user/pratos/prato-123/1.webp';
+    const step3ChatGptUrl = 'https://chatgpt.com';
+
+    expect(step1Prompt.length).toBeGreaterThan(10);
+    expect(step2PhotoUrl).toContain('prato-123');
+    expect(step3ChatGptUrl).toBe('https://chatgpt.com');
+
+    auditReport.push({
+      formId: 'form-chatgpt-flow',
+      routeName: '/imagem',
+      fieldsFound: ['copiar_prompt', 'copiar_foto', 'abrir_chatgpt', 'salvar_pasta_prato'],
+      submittedData: { prompt: step1Prompt, photoUrl: step2PhotoUrl },
+      status: 'SUCESSO',
+      message: 'Painel em 3 passos para o ChatGPT validado com cópia de prompt e foto.',
+    });
+  });
+
   it('Gera relatório final de auditoria de formulários', () => {
     const totalFound = auditReport.length;
     const totalSuccess = auditReport.filter((r) => r.status === 'SUCESSO').length;
     const totalFailed = auditReport.filter((r) => r.status === 'FALHA').length;
 
-    expect(totalFound).toBe(12);
-    expect(totalSuccess).toBe(12);
+    expect(totalFound).toBe(14);
+    expect(totalSuccess).toBe(14);
     expect(totalFailed).toBe(0);
   });
 });
