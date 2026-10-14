@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
-  BookOpen,
   Store,
   Camera,
   ImagePlus,
@@ -15,19 +14,25 @@ import {
   ArrowRight,
   ExternalLink,
   CreditCard,
-  ChevronRight,
+  FolderOpen,
+  Sparkles,
+  Check,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TutorialStep } from '@/components/tutorial/TutorialStep';
+import { GoldenBookIcon } from '@/components/ui/golden-book-icon';
+import { useTutorialProgress } from '@/lib/tutorial-progress';
+import { toast } from 'sonner';
 
 export const Route = createFileRoute('/tutorial')({
   head: () => ({
     meta: [
-      { title: 'Tutorial e Guia de Uso — Hack do aiFood' },
+      { title: 'Tutorial e Guia Oficial — Hack do iFood' },
       {
         name: 'description',
         content:
-          'Aprenda a tirar fotos certas, gerar imagens e metaprompts que vendem mais no iFood e Instagram.',
+          'Aprenda a tirar fotos certas, organizar pastas de pratos e usar prompts prontos que vendem mais no iFood e Instagram.',
       },
     ],
   }),
@@ -36,18 +41,23 @@ export const Route = createFileRoute('/tutorial')({
 
 const SECTIONS = [
   { id: 'primeiros-passos', num: '01', title: 'Primeiros passos', icon: Store, desc: 'Cadastro, logo e cores' },
-  { id: 'foto-do-prato', num: '02', title: 'Foto do prato', icon: Camera, desc: 'Iluminação, enquadramento e ângulo' },
-  { id: 'gerador-de-imagem', num: '03', title: 'Gerador de imagem', icon: ImagePlus, desc: 'Formatos 1:1, banner e ChatGPT' },
-  { id: 'descricao-do-cardapio', num: '04', title: 'Descrição do cardápio', icon: FileText, desc: 'Títulos e regras do iFood' },
-  { id: 'cerebro-de-marca', num: '05', title: 'Cérebro de marca', icon: Brain, desc: 'Posicionamento e tom de voz' },
-  { id: 'respostas-a-avaliacoes', num: '06', title: 'Respostas a avaliações', icon: MessageSquare, desc: '5 estrelas, 1 estrela e atrasos' },
-  { id: 'instagram', num: '07', title: 'Instagram', icon: Instagram, desc: 'Posts, legendas e bio magnética' },
-  { id: 'promocoes-e-precificacao', num: '08', title: 'Promoções e precificação', icon: Tags, desc: 'Margem real e combos seguros' },
-  { id: 'anuncios', num: '09', title: 'Anúncios', icon: Megaphone, desc: 'Story 9:16 e Carrossel' },
-  { id: 'duvidas-frequentes', num: '10', title: 'Dúvidas frequentes', icon: HelpCircle, desc: 'ChatGPT, assinatura e suporte' },
+  { id: 'tirar-foto-prato', num: '02', title: 'Tirar foto (até 3 por prato)', icon: Camera, desc: 'De cima, de lado e detalhe' },
+  { id: 'meus-materiais-pastas', num: '03', title: 'Meus materiais e pastas', icon: FolderOpen, desc: 'Pastas por prato e Minha marca' },
+  { id: 'anexar-direto-ferramentas', num: '04', title: 'Anexar direto nas ferramentas', icon: Sparkles, desc: 'Botão flutuante e 3 passos para o ChatGPT' },
+  { id: 'foto-do-prato', num: '05', title: 'Dicas de fotografia', icon: Camera, desc: 'Iluminação, fundo e nitidez' },
+  { id: 'gerador-de-imagem', num: '06', title: 'Gerador de imagem', icon: ImagePlus, desc: 'Formatos 1:1, banner e ChatGPT' },
+  { id: 'descricao-do-cardapio', num: '07', title: 'Descrição do cardápio', icon: FileText, desc: 'Títulos e regras do iFood' },
+  { id: 'cerebro-de-marca', num: '08', title: 'Tom de voz da marca', icon: Brain, desc: 'Posicionamento e público' },
+  { id: 'respostas-a-avaliacoes', num: '09', title: 'Respostas a avaliações', icon: MessageSquare, desc: '5 estrelas, 1 estrela e atrasos' },
+  { id: 'instagram', num: '10', title: 'Instagram', icon: Instagram, desc: 'Posts, legendas e bio magnética' },
+  { id: 'promocoes-e-precificacao', num: '11', title: 'Promoções e precificação', icon: Tags, desc: 'Margem real e combos seguros' },
+  { id: 'anuncios', num: '12', title: 'Anúncios', icon: Megaphone, desc: 'Story 9:16 e Carrossel' },
+  { id: 'duvidas-frequentes', num: '13', title: 'Dúvidas frequentes', icon: HelpCircle, desc: 'ChatGPT, assinatura e suporte' },
 ] as const;
 
 export function TutorialPage() {
+  const navigate = useNavigate();
+  const { isCompleted, markCompleted } = useTutorialProgress();
   const [activeSection, setActiveSection] = useState<string>('primeiros-passos');
 
   useEffect(() => {
@@ -80,40 +90,59 @@ export function TutorialPage() {
     }
   };
 
+  const handleFinishTutorial = () => {
+    markCompleted();
+    toast.success('Tutorial concluído! Bom trabalho.');
+    navigate({ to: '/dashboard' });
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header Banner */}
       <div className="mb-8 rounded-2xl border border-white/10 bg-[#141414] p-6 sm:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#EA1D2C] text-white shadow-lg">
-              <BookOpen className="h-7 w-7" />
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-lg">
+              <GoldenBookIcon className="h-8 w-8" />
             </div>
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#EA1D2C]">
-                Guia Oficial de Sucesso
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-black text-white">
-                Como usar o hack du ifood
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                  Guia Oficial de Sucesso
+                </span>
+                <span
+                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-sm ${
+                    isCompleted
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-[#EA1D2C]/20 text-[#EA1D2C] border border-[#EA1D2C]/30'
+                  }`}
+                >
+                  {isCompleted ? 'CONCLUÍDO ✓' : 'OBRIGATÓRIO'}
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-white mt-0.5">
+                Como usar o Hack do iFood
               </h1>
               <p className="mt-1 text-xs sm:text-sm text-white/70">
-                Aprenda a aplicar os metaprompts no ChatGPT para transformar suas vendas, cardápio e anúncios.
+                Aprenda a tirar as fotos certas, organizar pastas por prato e aplicar os prompts prontos no ChatGPT.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" className="border-white/20">
+            <Button asChild variant="outline" className="border-white/20 rounded-xl">
               <Link to="/planos">
                 <CreditCard className="mr-2 h-4 w-4" />
                 Ver planos
               </Link>
             </Button>
-            <Button asChild className="bg-[#EA1D2C] hover:bg-[#ff3b4b]">
-              <Link to="/dashboard">
-                Ir para o painel
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+            <Button
+              type="button"
+              onClick={handleFinishTutorial}
+              className="bg-[#EA1D2C] hover:bg-[#ff3b4b] rounded-xl font-bold"
+            >
+              <Check className="mr-2 h-4 w-4" />
+              {isCompleted ? 'Voltar para Meu cardápio' : 'Concluir tutorial'}
             </Button>
           </div>
         </div>
@@ -182,14 +211,14 @@ export function TutorialPage() {
               <p className="text-[11px] text-white/50 leading-relaxed">
                 Precisa de ajuda ao vivo? Fale com nosso suporte oficial no WhatsApp.
               </p>
-              <Button asChild size="sm" variant="outline" className="mt-2.5 w-full text-xs">
+              <Button asChild size="sm" variant="outline" className="mt-2.5 w-full text-xs rounded-xl">
                 <Link to="/planos">Falar com suporte</Link>
               </Button>
             </div>
           </div>
         </aside>
 
-        {/* Content Column (10 Sections) */}
+        {/* Content Column */}
         <div className="space-y-12 lg:col-span-3">
           {/* 1. Primeiros passos */}
           <section id="primeiros-passos" className="scroll-mt-24 space-y-6">
@@ -197,7 +226,7 @@ export function TutorialPage() {
               <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 01</span>
               <h2 className="text-2xl font-black text-white">Primeiros passos: Cadastro, logo e cores</h2>
               <p className="text-sm text-white/60">
-                Como configurar os dados da sua loja para alimentar automaticamente todos os metaprompts.
+                Como configurar os dados da sua loja para alimentar automaticamente todos os prompts prontos.
               </p>
             </div>
 
@@ -207,7 +236,7 @@ export function TutorialPage() {
                 title="Cadastre os dados reais da sua loja"
                 paragraphs={[
                   'Acesse a tela "Minha empresa" no menu lateral. Preencha o nome exato do seu restaurante, categoria de culinária, cidade de entrega, WhatsApp e Instagram.',
-                  'Todos os 9 geradores de prompt utilizam essas variáveis automaticamente, economizando horas de digitação manual.',
+                  'Todas as ferramentas de prompt utilizam essas variáveis automaticamente, economizando horas de digitação manual.',
                 ]}
                 imageSrc="/tutorial/primeiros-passos-1.webp"
                 imageAlt="Tela de cadastro de empresa com campos de WhatsApp, cidade e horário"
@@ -228,13 +257,123 @@ export function TutorialPage() {
             </div>
           </section>
 
-          {/* 2. Foto do prato */}
-          <section id="foto-do-prato" className="scroll-mt-24 space-y-6">
+          {/* 2. Tirar foto (até 3 por prato) */}
+          <section id="tirar-foto-prato" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
               <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 02</span>
-              <h2 className="text-2xl font-black text-white">Foto do prato: Iluminação e ângulo correto</h2>
+              <h2 className="text-2xl font-black text-white">Tirar foto: até 3 fotos por prato</h2>
               <p className="text-sm text-white/60">
-                A foto real é a alma do anúncio. Aprenda a capturar imagens que despertam apetite imediato.
+                Chega de tirar fotos repetidas. Tire exatamente os 3 ângulos que convertem e salve na pasta do prato.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              <TutorialStep
+                stepNumber={1}
+                title="Os 3 ângulos essenciais: De cima, De lado e Detalhe"
+                paragraphs={[
+                  'Slot 1 (De cima - 90°): Fotografe o prato visto de cima, mostrando a porção completa e os acompanhamentos. Esta é a foto de capa do cardápio.',
+                  'Slot 2 (De lado - 45°): Fotografe na diagonal para evidenciar a altura do hambúrguer, o recheio da fatia de pizza ou a textura do molho.',
+                  'Slot 3 (Detalhe): Faça um close-up aproximado no queijo derretendo, na carne dourada ou na calda escorrendo. É o que desperta a fome imediata.',
+                ]}
+                imageSrc="/tutorial/foto-do-prato-1.webp"
+                imageAlt="Os 3 slots de fotos de prato: de cima, de lado e detalhe"
+                tip="O sistema limita estritamente em 3 fotos por prato para manter seu catálogo leve, organizado e sem desperdício de tempo."
+              />
+
+              <TutorialStep
+                stepNumber={2}
+                title="Câmera direta no celular com botão de disparo"
+                paragraphs={[
+                  'Na tela "Tirar foto do prato", escolha o prato desejado e toque no botão "Tirar foto agora".',
+                  'A tela cheia da câmera se abre com o botão de disparo circular. Se você não gostar do resultado, basta tocar em "Refazer" ou "Remover".',
+                ]}
+                imageSrc="/tutorial/foto-do-prato-2.webp"
+                imageAlt="Interface da câmera com botão de disparo e opções de refazer"
+              />
+            </div>
+          </section>
+
+          {/* 3. Meus materiais e pastas */}
+          <section id="meus-materiais-pastas" className="scroll-mt-24 space-y-6">
+            <div className="border-b border-white/10 pb-3">
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 03</span>
+              <h2 className="text-2xl font-black text-white">Meus materiais: Pastas por prato estilo Windows</h2>
+              <p className="text-sm text-white/60">
+                Uma pasta limpa e dedicada para cada prato, além da pasta "Minha marca".
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              <TutorialStep
+                stepNumber={1}
+                title="Estrutura de pastas automática"
+                paragraphs={[
+                  'Na tela "Meus materiais", você encontra uma pasta para cada prato cadastrado e uma pasta especial "Minha marca".',
+                  'Dentro da pasta de cada prato ficam armazenadas as suas até 3 fotos reais e todos os textos e prompts gerados especificamente para aquele item.',
+                ]}
+                imageSrc="/tutorial/gerador-de-imagem-1.webp"
+                imageAlt="Explorador de materiais com pastas de pratos e pasta minha marca"
+                tip="Você pode navegar usando a barra de caminho (breadcrumbs), buscar por nome ou alternar entre visualização em grade e lista."
+              />
+
+              <TutorialStep
+                stepNumber={2}
+                title="Ações rápidas de foto e texto"
+                paragraphs={[
+                  'Ao abrir a pasta de um prato, você pode copiar uma foto com um clique para a área de transferência ou baixá-la em alta definição.',
+                  'Os prompts de descrição e anúncios salvos possuem botão de cópia direta para você colar no portal do iFood ou no Instagram.',
+                ]}
+                imageSrc="/tutorial/gerador-de-imagem-2.webp"
+                imageAlt="Ações de copiar foto e texto na pasta do prato"
+              />
+            </div>
+          </section>
+
+          {/* 4. Anexar direto nas ferramentas */}
+          <section id="anexar-direto-ferramentas" className="scroll-mt-24 space-y-6">
+            <div className="border-b border-white/10 pb-3">
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 04</span>
+              <h2 className="text-2xl font-black text-white">Anexar direto nas ferramentas e 3 passos para o ChatGPT</h2>
+              <p className="text-sm text-white/60">
+                Como usar o botão flutuante e levar prompts e fotos para o ChatGPT em poucos segundos.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              <TutorialStep
+                stepNumber={1}
+                title="Botão flutuante com a logo da sua loja"
+                paragraphs={[
+                  'Em todas as ferramentas de prompt, você verá um botão flutuante no canto inferior direito exibindo a logo da sua loja.',
+                  'Toque nele para abrir o seletor de materiais em qualquer tela: ao selecionar um prato, o nome e as fotos são anexados imediatamente à ferramenta em que você está.',
+                ]}
+                imageSrc="/tutorial/anuncios-1.webp"
+                imageAlt="Botão flutuante e seletor modal de pratos nas ferramentas"
+              />
+
+              <TutorialStep
+                stepNumber={2}
+                title="Painel de ação em 3 passos para o ChatGPT"
+                paragraphs={[
+                  'Passo 1: Clique em "Copiar prompt pronto" para copiar o comando compilado.',
+                  'Passo 2: Clique em "Copiar foto" para colocar a imagem na área de transferência (ou "Baixar" se preferir).',
+                  'Passo 3: Clique em "Abrir ChatGPT", cole com Ctrl+V na conversa e envie!',
+                ]}
+                imageSrc="/tutorial/anuncios-2.webp"
+                imageAlt="Painel com 3 passos para o ChatGPT e botão de salvar na pasta do prato"
+                tip="Sempre use o botão 'Salvar na pasta do prato' para guardar a versão gerada no explorador de materiais."
+              />
+            </div>
+          </section>
+
+          {/* 5. Dicas de fotografia */}
+          <section id="foto-do-prato" className="scroll-mt-24 space-y-6">
+            <div className="border-b border-white/10 pb-3">
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 05</span>
+              <h2 className="text-2xl font-black text-white">Dicas de fotografia: Luz, cenário e limpeza</h2>
+              <p className="text-sm text-white/60">
+                A foto real é a base de tudo. Aprenda a capturar imagens que despertam apetite imediato.
               </p>
             </div>
 
@@ -248,210 +387,188 @@ export function TutorialPage() {
                 ]}
                 imageSrc="/tutorial/foto-do-prato-1.webp"
                 imageAlt="Esquema de iluminação natural com janela lateral para foto de comida"
-                tip="Limpe a lente da câmera do celular com um pano de algodão antes de fotografar; marcas de dedo deixam a foto embaçada."
               />
 
               <TutorialStep
                 stepNumber={2}
-                title="Acerte o ângulo: 45 graus ou vista superior (flat lay)"
+                title="Limpeza da borda e fundo neutro"
                 paragraphs={[
-                  'Para hambúrgueres, pizzas com borda alta e copos de açaí, utilize o ângulo de 45° ou na altura dos olhos.',
-                  'Para marmitas, combinados de sushi e pizzas abertas na caixa, fotografe de cima para baixo em 90° (flat lay).',
+                  'Limpe qualquer respingo de molho na borda do prato ou embalagem com papel toalha.',
+                  'Use um fundo de madeira escura, ardósia ou bancada limpa. Um fundo neutro faz a cor dos alimentos vibrar na tela do celular do cliente.',
                 ]}
                 imageSrc="/tutorial/foto-do-prato-2.webp"
-                imageAlt="Comparativo entre ângulos de 45 graus e flat lay de 90 graus"
-                tip="Aproxime a câmera sem usar zoom digital acima de 2x para não perder resolução."
+                imageAlt="Prato montado com borda limpa sobre fundo de madeira"
+                tip="Limpe a lente da câmera do celular na camiseta antes de fotografar: a gordura do dedo deixa a foto embaçada sem você perceber."
               />
             </div>
           </section>
 
-          {/* 3. Gerador de imagem */}
+          {/* 6. Gerador de imagem */}
           <section id="gerador-de-imagem" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
-              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 03</span>
-              <h2 className="text-2xl font-black text-white">Gerador de imagem: Formatos e prompts no ChatGPT</h2>
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 06</span>
+              <h2 className="text-2xl font-black text-white">Gerador de imagem: Formatos 1:1, banner e ChatGPT</h2>
               <p className="text-sm text-white/60">
-                Como utilizar os templates T1, T2 e T3 para produzir imagens profissionais para o iFood.
+                Como transformar sua foto simples em uma foto com aspecto profissional de estúdio.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               <TutorialStep
                 stepNumber={1}
-                title="Escolha o formato: 1:1, Banner ou Ícone"
+                title="Modo 'Aprimorar' vs 'Criar do zero'"
                 paragraphs={[
-                  'Foto do prato 1:1 (quadrado 1080x1080) é o padrão para o cardápio do iFood.',
-                  'Banner do cardápio (1600x400) é a capa da sua loja na plataforma.',
-                  'Ícone da loja (500x500) é a foto de perfil que aparece nas buscas do app.',
+                  'Sempre prefira o modo "Aprimorar": você envia a foto real do seu prato e o ChatGPT melhora iluminação, fundo e contraste, mantendo o prato fiel.',
+                  'O modo "Criar do zero" deve ser usado apenas para mockups de embalagens, fundos conceituais ou banners da loja.',
                 ]}
                 imageSrc="/tutorial/gerador-de-imagem-1.webp"
-                imageAlt="Seleção dos três formatos de imagem no estúdio do app"
-                tip="Gere sempre primeiro a imagem 1:1 do seu prato principal (carro-chefe) antes de montar o banner."
+                imageAlt="Comparativo entre prato real e imagem aprimorada por IA"
+                tip="O iFood exige que a foto represente fielmente o que o cliente recebe em casa. Não gere pratos com ingredientes que você não entrega!"
               />
 
               <TutorialStep
                 stepNumber={2}
-                title="Copie o metaprompt e cole no ChatGPT com a foto real"
+                title="Escolha o formato correto"
                 paragraphs={[
-                  'Clique no botão "Copiar prompt" no nosso app.',
-                  'Abra o ChatGPT (ou DALL-E / Midjourney). Anexe a foto real que você tirou e cole o metaprompt copiado.',
-                  'O prompt instrui a IA a preservar rigorosamente os ingredientes e a proporção real do seu alimento, embelezando o fundo e a iluminação.',
+                  'Quadrado 1:1 (1200x1200): O formato obrigatório para os itens do cardápio no iFood.',
+                  'Horizontal 16:9 (1600x900): Para a capa/banner da sua loja no topo do perfil.',
+                  'Ícone da loja (500x500): Para a logo circular do perfil.',
                 ]}
                 imageSrc="/tutorial/gerador-de-imagem-2.webp"
-                imageAlt="Passo a passo colando o prompt e anexando foto no ChatGPT"
-                tip="Nunca use comandos vagos como 'faça um hambúrguer bonito'. Use o nosso metaprompt completo que fixa as regras contra alterações falsas."
-                exampleToCopy="Aja como fotógrafo e estilista culinário sênior. Melhore a ambientação da foto anexa, mantendo os ingredientes reais do produto intactos. Fundo escuro com iluminação pontual quente."
-                exampleLabel="Copiar prompt base"
+                imageAlt="Formatos 1:1, 16:9 e ícone"
               />
             </div>
           </section>
 
-          {/* 4. Descrição do cardápio */}
+          {/* 7. Descrição do cardápio */}
           <section id="descricao-do-cardapio" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
-              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 04</span>
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 07</span>
               <h2 className="text-2xl font-black text-white">Descrição do cardápio: Textos que vendem</h2>
               <p className="text-sm text-white/60">
-                Títulos curtos e descrições claras reduzem cancelamentos e aceleram a decisão de compra.
+                Como escrever títulos apetitosos e descrições claras que evitam cancelamentos e dúvidas.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               <TutorialStep
                 stepNumber={1}
-                title="Títulos de pratos: Direto e apetitoso"
+                title="Estrutura de uma descrição perfeita"
                 paragraphs={[
-                  'O cliente do iFood lê pelo celular enquanto sente fome. Nomes confusos ou longos demais são ignorados.',
-                  'Coloque o tipo do prato + ingrediente nobre + peso/quantidade. Exemplo: "Smash Duplo Bacon 180g" em vez de "Sanduíche especial da casa".',
+                  '1. Gancho sensorial: "Burguer artesanal no ponto perfeito..."',
+                  '2. Ingredientes reais e porção: gramatura da carne, tipo de queijo, molho especial e acompanhamentos.',
+                  '3. Informações claras: peso estimado, serve quantas pessoas, se contém lactose ou glúten.',
                 ]}
                 imageSrc="/tutorial/descricao-do-cardapio-1.webp"
-                imageAlt="Exemplo de título bem estruturado no painel do iFood"
-                tip="Destaque se serve 1 ou 2 pessoas logo nas primeiras palavras da descrição."
-              />
-
-              <TutorialStep
-                stepNumber={2}
-                title="Metaprompt T4 para descrições completas"
-                paragraphs={[
-                  'No nosso app, abra "Descrição para o iFood", selecione o prato e liste os ingredientes.',
-                  'O gerador entrega uma descrição estruturada em 3 blocos: sabor em destaque, lista de ingredientes e peso aproximado.',
-                ]}
-                imageSrc="/tutorial/descricao-do-cardapio-2.webp"
-                imageAlt="Tela do gerador de descrição com campos preenchidos e prompt resultante"
-                exampleToCopy="Dois suculentos hambúrgueres smash de 90g com crostinha crocante, queijo cheddar derretido, fatias de bacon crocante artesanal e maionese defumada no pão brioche amanteigado selado. Acompanha sachê de molho especial. (Aproximadamente 320g · Serve 1 pessoa)"
-                exampleLabel="Copiar exemplo de descrição"
+                imageAlt="Exemplo de descrição de prato completa no iFood"
+                tip="Nunca coloque 'o melhor da cidade' ou promessas vagas. Descreva sabores concretos: defumado, crocante, suculento, derretido."
               />
             </div>
           </section>
 
-          {/* 5. Cérebro de marca */}
+          {/* 8. Tom de voz da marca */}
           <section id="cerebro-de-marca" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
-              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 05</span>
-              <h2 className="text-2xl font-black text-white">Cérebro de marca: Posicionamento e voz</h2>
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 08</span>
+              <h2 className="text-2xl font-black text-white">Tom de voz da marca: Posicionamento único</h2>
               <p className="text-sm text-white/60">
-                Como criar um tom de voz memorável para que sua loja não pareça mais uma genérica no iFood.
+                Alinhe seu delivery com seu público-alvo: família, jovens, gourmet ou universitários.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               <TutorialStep
                 stepNumber={1}
-                title="Defina sua personalidade e diferencial"
+                title="Defina a personalidade da sua loja"
                 paragraphs={[
-                  'Uma hamburgueria artesanal noturna fala de forma descontraída e provocativa. Já uma marmitaria caseira para o almoço fala de conforto, afeto e rapidez.',
-                  'O template T5 ("Cérebro de marca") formula todo o manual de tom de voz da sua loja em 1 página clara.',
+                  'Escolha até 3 traços: descontraída, tradicional, artesanal, rápida ou premium.',
+                  'Essa escolha dita como o ChatGPT responderá avaliações, criará legendas no Instagram e redigirá promoções.',
                 ]}
                 imageSrc="/tutorial/cerebro-de-marca-1.webp"
-                imageAlt="Formulário do cérebro de marca com arquétipos e tom de voz"
-                tip="Salve o resultado do Cérebro de Marca nos seus materiais: use-o como contexto inicial em qualquer conversa com IA."
+                imageAlt="Configuração de tom de voz e público-alvo"
               />
             </div>
           </section>
 
-          {/* 6. Respostas a avaliações */}
+          {/* 9. Respostas a avaliações */}
           <section id="respostas-a-avaliacoes" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
-              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 06</span>
-              <h2 className="text-2xl font-black text-white">Respostas a avaliações: 5 estrelas e 1 estrela</h2>
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 09</span>
+              <h2 className="text-2xl font-black text-white">Respostas a avaliações: Transforme reclamações em vendas</h2>
               <p className="text-sm text-white/60">
-                Respostas atenciosas aumentam o ranqueamento no algoritmo do iFood e revertem clientes insatisfeitos.
+                Respostas educadas e profissionais aumentam a nota do restaurante no iFood e atraem novos clientes.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               <TutorialStep
                 stepNumber={1}
-                title="Revertendo avaliações de 1 estrela sem discussão"
+                title="Avaliação de 1 estrela: nunca bata boca"
                 paragraphs={[
-                  'Nunca culpe o cliente ou o motoboy em público. O algoritmo e os futuros clientes analisam sua maturidade.',
-                  'Agradeça o toque, peça desculpas pelo ocorrido específico (ex.: embalagem amassada) e convide a pessoa a entrar em contato pelo WhatsApp para um envio de cortesia.',
+                  'Agradeça pelo aviso, peça desculpas com empatia, relate brevemente a solução aplicada na cozinha e convide o cliente para conversar no WhatsApp da loja.',
+                  'Outros clientes leem suas respostas para decidir se confiam no seu restaurante.',
                 ]}
                 imageSrc="/tutorial/respostas-a-avaliacoes-1.webp"
-                imageAlt="Modelo de resposta a comentário de 1 estrela no painel do iFood"
-                exampleToCopy="Olá! Sentimos muito que seu pedido não chegou com o capricho que você merece. Tivemos uma intercorrência com a rota dos entregadores, mas isso não reflete nosso padrão. Por favor, nos chame no WhatsApp para que possamos enviar um novo prato por nossa conta!"
-                exampleLabel="Copiar resposta cordial 1 estrela"
+                imageAlt="Exemplo de resposta elegante para avaliação crítica"
               />
             </div>
           </section>
 
-          {/* 7. Instagram */}
+          {/* 10. Instagram */}
           <section id="instagram" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
-              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 07</span>
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 10</span>
               <h2 className="text-2xl font-black text-white">Instagram: Posts, legendas e bio magnética</h2>
               <p className="text-sm text-white/60">
-                Conecte seu Instagram ao iFood com chamadas para ação que geram pedidos nos horários de pico.
+                Transforme seguidores em pedidos frequentes no iFood ou WhatsApp.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               <TutorialStep
                 stepNumber={1}
-                title="Posts nos horários certos (11h e 18h)"
+                title="Bio clara com link direto"
                 paragraphs={[
-                  'O pico de fome para almoço começa às 11h15; para o jantar, às 18h30.',
-                  'Use o gerador de Instagram do app para produzir legendas com gatilhos de urgência e link direto da sua bio para o cardápio.',
+                  'A bio precisa responder 3 perguntas em 3 segundos: O que você vende? Onde entrega? Como pedir agora?',
+                  'Utilize a ferramenta "Minha página" para criar uma landing page com link direto para o cardápio do iFood.',
                 ]}
                 imageSrc="/tutorial/instagram-1.webp"
-                imageAlt="Exemplo de post no feed com legenda apetitosa e chamada para pedir"
-                tip="Coloque sempre o link da sua página própria ou iFood na primeira linha da bio com um emoji de seta."
+                imageAlt="Estrutura de bio magnética para perfil de delivery"
               />
             </div>
           </section>
 
-          {/* 8. Promoções e precificação */}
+          {/* 11. Promoções e precificação */}
           <section id="promocoes-e-precificacao" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
-              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 08</span>
-              <h2 className="text-2xl font-black text-white">Promoções e precificação: Lucro por pedido</h2>
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 11</span>
+              <h2 className="text-2xl font-black text-white">Promoções e precificação: Lucro protegido</h2>
               <p className="text-sm text-white/60">
-                Nunca participe de promoções do iFood sem antes calcular a comissão e as taxas reais.
+                Crie combos e cupons calculando a comissão do iFood sem tomar prejuízo no final do mês.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               <TutorialStep
                 stepNumber={1}
-                title="Fórmula de margem líquida"
+                title="Cálculo da margem com taxa de entrega"
                 paragraphs={[
-                  'Valor líquido = Preço final × (1 − taxa do iFood − desconto concedido). Lucro real = Valor líquido − Custo de produção.',
-                  'Nosso gerador T9 calcula exatamente quantos pedidos adicionais você precisa vender para empatar antes de dar qualquer desconto de 20% ou 30%.',
+                  'Informe o preço atual, custo de produção e a taxa da plataforma (ex.: 12% a 27%).',
+                  'O prompt gera sugestões de ancoragem e combos (ex.: prato + bebida) para aumentar seu ticket médio.',
                 ]}
-                imageSrc="/tutorial/promocoes-e-precificacao-1.webp"
-                imageAlt="Planilha de cálculo de margem e simulação de combo lucrativo"
-                tip="Dê desconto na bebida ou na sobremesa, onde a margem percentual costuma ser maior que no prato principal."
+                imageSrc="/tutorial/promocoes-1.webp"
+                imageAlt="Calculadora de margem e estrutura de precificação"
               />
             </div>
           </section>
 
-          {/* 9. Anúncios */}
+          {/* 12. Anúncios */}
           <section id="anuncios" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
-              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 09</span>
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 12</span>
               <h2 className="text-2xl font-black text-white">Anúncios: Story 9:16 e Carrossel</h2>
               <p className="text-sm text-white/60">
-                Crie criativos focados em conversão para campanhas patrocinadas no Instagram e Facebook Ads.
+                Criativos de alta conversão para anúncios patrocinados no Instagram e Meta Ads.
               </p>
             </div>
 
@@ -460,32 +577,19 @@ export function TutorialPage() {
                 stepNumber={1}
                 title="Story 9:16 com zonas seguras"
                 paragraphs={[
-                  'O formato Story (1080x1920) exige zonas de respiro de 250px no topo (foto de perfil) e na base (barra de resposta).',
-                  'Nosso metaprompt instrui a IA a concentrar o título curto e a foto irresistível no centro visual, sem cortes.',
+                  'O formato Story (1080x1920) exige zonas de respiro de 250px no topo e na base.',
+                  'Nosso prompt instrui a IA a centralizar a foto apetitosa e o título chamativo no meio da tela.',
                 ]}
                 imageSrc="/tutorial/anuncios-1.webp"
-                imageAlt="Gabarito do Story 9:16 mostrando zonas seguras e foco central"
-                tip="Títulos de anúncio devem ter no máximo 5 a 6 palavras. Ex.: 'Bateu a fome? Peça agora!'"
-              />
-
-              <TutorialStep
-                stepNumber={2}
-                title="Carrossel 4:5 de 5 a 7 slides"
-                paragraphs={[
-                  'Slide 1: Gancho forte com a foto real do prato.',
-                  'Slides do meio: Ingredientes especiais, benefícios e prova social de clientes.',
-                  'Último slide: Chamada para ação com cupom de primeira compra.',
-                ]}
-                imageSrc="/tutorial/anuncios-2.webp"
-                imageAlt="Sequência de slides de carrossel de Instagram para delivery"
+                imageAlt="Gabarito de Story 9:16 com zonas seguras"
               />
             </div>
           </section>
 
-          {/* 10. Dúvidas frequentes */}
+          {/* 13. Dúvidas frequentes */}
           <section id="duvidas-frequentes" className="scroll-mt-24 space-y-6">
             <div className="border-b border-white/10 pb-3">
-              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 10</span>
+              <span className="text-xs font-bold text-[#EA1D2C]">SEÇÃO 13</span>
               <h2 className="text-2xl font-black text-white">Dúvidas frequentes e suporte</h2>
               <p className="text-sm text-white/60">
                 Respostas rápidas sobre o funcionamento do ChatGPT, planos e suporte.
@@ -498,7 +602,7 @@ export function TutorialPage() {
                   Preciso ter o ChatGPT Plus (pago) para usar os prompts?
                 </h3>
                 <p className="text-sm text-white/70 leading-relaxed">
-                  Não obrigatoriamente. O ChatGPT gratuito já consegue ler os prompts e fotos perfeitamente. No entanto, o plano ChatGPT Plus oferece o modelo GPT-4o e DALL-E 3 com maior fidelidade de texturas e resolução.
+                  Não obrigatoriamente. O ChatGPT gratuito já lê os prompts e fotos perfeitamente. No entanto, o plano ChatGPT Plus oferece o modelo GPT-4o e DALL-E 3 com maior resolução e texturas aprimoradas.
                 </p>
               </div>
 
@@ -507,28 +611,34 @@ export function TutorialPage() {
                   O que acontece se meu plano experimental de 7 dias expirar?
                 </h3>
                 <p className="text-sm text-white/70 leading-relaxed">
-                  Você nunca perde seus materiais salvos: a aba "Meus materiais" e os dados da "Minha empresa" continuam sempre acessíveis. Apenas a geração de novos prompts fica pausada até a ativação de um plano Mensal ou Trimestral.
+                  Você nunca perde seus materiais salvos: a aba "Meus materiais" e os dados da sua empresa continuam sempre acessíveis. Apenas a geração de novos prompts fica pausada até a ativação de um plano Mensal ou Trimestral.
                 </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-[#141414] p-5 space-y-2">
-                <h3 className="font-bold text-white text-base">
-                  Como falar diretamente com o suporte técnico?
-                </h3>
-                <p className="text-sm text-white/70 leading-relaxed">
-                  Acesse a aba <strong>Planos e assinatura</strong> no menu lateral ou clique no botão abaixo para abrir nosso canal oficial no WhatsApp.
-                </p>
-                <div className="pt-2">
-                  <Button asChild size="sm" className="bg-[#EA1D2C] hover:bg-[#ff3b4b]">
-                    <Link to="/planos">
-                      Falar com suporte no WhatsApp
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
               </div>
             </div>
           </section>
+
+          {/* Final Completion Card */}
+          <div className="rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-[#181818] to-[#141414] p-8 text-center space-y-4 shadow-xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              <GoldenBookIcon className="h-8 w-8" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white">Parabéns! Você completou o tutorial</h2>
+              <p className="text-sm text-white/70 max-w-lg mx-auto mt-1">
+                Agora você sabe como tirar as 3 fotos dos pratos, organizar seus materiais e levar os prompts prontos direto para o ChatGPT.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Button
+                type="button"
+                onClick={handleFinishTutorial}
+                className="h-14 px-8 rounded-2xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-white text-base font-bold shadow-xl shadow-[#EA1D2C]/20 gap-2"
+              >
+                <Check className="h-5 w-5" />
+                Concluir tutorial e ir para Meu cardápio
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
