@@ -19,11 +19,11 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import loginBg from '@/assets/login-bg-clean.jpg';
+import cinematicBg from '@/assets/login-bg-cinematic.webp';
 import logoHack from '@/assets/logo-hack.png';
-import { ValuePanel } from '@/components/login/ValuePanel';
-import { FloatingTiles } from '@/components/login/FloatingTiles';
-import { ArrowHint } from '@/components/login/ArrowHint';
+import { AmbientLighting } from '@/components/login/AmbientLighting';
+import { PhoneHero } from '@/components/login/PhoneHero';
+import { ServicesSection } from '@/components/login/ServicesSection';
 import { SUPPORT_WHATSAPP } from '@/config';
 import {
   useAuth,
@@ -79,6 +79,7 @@ function LoginPage() {
   const [resending, setResending] = useState(false);
   const [emailPendente, setEmailPendente] = useState(false);
   const [sentToEmail, setSentToEmail] = useState('');
+  const [lembrarMe, setLembrarMe] = useState(false);
 
   // Guard against duplicate concurrent submissions (double-clicks / double events)
   const isSubmittingRef = useRef(false);
@@ -325,42 +326,34 @@ function LoginPage() {
   const isFormBlocked = loading || lockStatus.isLocked || rateLimitStatus.isLimited;
 
   return (
-    <div className="relative min-h-svh w-full bg-[#080808] font-sans text-white overflow-x-hidden flex flex-col justify-between">
-      {/* Background Chef photo — face clearly visible in upper right corner */}
+    <div className="relative min-h-svh w-full bg-[#060606] font-sans text-white overflow-x-hidden flex flex-col justify-between">
+      {/* Background Cinematográfico da Referência: mesa de ardósia, burger suculento e laptop ao fundo */}
       <img
-        src={loginBg}
-        alt="Chef"
-        className="absolute inset-0 h-full w-full object-cover object-[right_top] select-none pointer-events-none opacity-85 z-0"
+        src={cinematicBg}
+        alt="Ambiente Restaurante"
+        className="absolute inset-0 h-full w-full object-cover object-right select-none pointer-events-none opacity-90 z-0"
       />
 
-      {/* Dark gradient for optimal contrast and readability while keeping chef face visible */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[#080808]/98 via-[#080808]/85 to-[#080808]/25 z-0 pointer-events-none" />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#080808]/95 via-transparent to-[#080808]/40 z-0 pointer-events-none" />
+      {/* Gradientes de Fusão e Profundidade */}
+      <div className="absolute inset-0 bg-gradient-to-r from-[#060606] via-[#060606]/92 to-transparent z-0 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#060606]/95 via-transparent to-[#060606]/50 z-0 pointer-events-none" />
 
-      {/* Floating glass tiles at varying depths */}
-      <FloatingTiles variant="desktop" />
-      <FloatingTiles variant="mobile" />
+      {/* Luzes Vermelhas Desfocadas, LEDs e Reflexos Animados */}
+      <AmbientLighting />
 
-      {/* Main Content Area: Responsive Grid (3 columns on Desktop >=1024px, stacked on mobile) */}
-      <div className="relative z-10 flex-1 flex flex-col lg:flex-row lg:items-center px-6 py-8 sm:px-10 lg:px-10 xl:px-14 lg:gap-10 xl:gap-14 max-w-[1600px] w-full mx-auto my-auto">
-        {/* Coluna 1: Esquerda (360px no desktop) */}
-        <div className="w-full lg:w-[360px] lg:shrink-0 flex flex-col relative z-20">
-          {/* Logo Original (PNG transparente com sorriso-seta e faíscas) */}
-          <div className="flex items-center">
-            <img
-              src={logoHack}
-              alt="hack du ifood"
-              className="h-14 sm:h-16 w-auto object-contain"
-            />
-          </div>
-
-          <p className="mt-4 text-base font-light text-white/90 sm:text-lg leading-snug">
-            Mais estratégias.
-            <br />
-            Mais entregas.
-          </p>
-
-          <div className="mt-3 h-1 w-14 bg-[#EA1D2C] rounded-sm" />
+      {/* Main Content Area */}
+      <div className="relative z-10 flex-1 flex flex-col justify-between px-6 py-6 sm:px-10 lg:px-12 xl:px-16 max-w-[1720px] w-full mx-auto">
+        <div className="my-auto flex flex-col lg:grid lg:grid-cols-[380px_minmax(360px,460px)_1fr] lg:gap-10 xl:gap-16 items-center">
+          {/* Coluna 1: Esquerda (380px no desktop) */}
+          <div className="w-full lg:w-[380px] lg:shrink-0 flex flex-col relative z-20">
+            {/* Logo Original */}
+            <div className="flex items-center">
+              <img
+                src={logoHack}
+                alt="hack du ifood"
+                className="h-14 sm:h-16 w-auto object-contain drop-shadow-[0_4px_16px_rgba(234,29,44,0.3)] animate-fade-in-up"
+              />
+            </div>
 
           {/* Rate-limit warning banner */}
           {rateLimitStatus.isLimited && (
@@ -473,78 +466,103 @@ function LoginPage() {
               </div>
             </div>
           ) : modo === 'login' ? (
-            /* Form de login */
-            <form onSubmit={handleLogin} className="mt-8 space-y-4">
-              <label className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-md transition-colors focus-within:border-[#EA1D2C]">
-                <Mail className="h-5 w-5 shrink-0 text-white/80" />
-                <span className="flex w-full flex-col">
-                  <span className="text-xs font-medium text-white/60">E-mail ou Usuário</span>
-                  <input
-                    type="text"
-                    value={usuario}
-                    onChange={(e) => setUsuario(e.target.value)}
-                    placeholder="voce@restaurante.com ou @usuario"
-                    autoComplete="username"
-                    disabled={isFormBlocked}
-                    className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
-                  />
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-md transition-colors focus-within:border-[#EA1D2C]">
-                <Lock className="h-5 w-5 shrink-0 text-white/80" />
-                <span className="flex w-full flex-col">
-                  <span className="text-xs font-medium text-white/60">Senha</span>
-                  <input
-                    type={showSenha ? 'text' : 'password'}
-                    value={senha}
-                    onChange={(e) => setSenha(e.target.value)}
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                    disabled={isFormBlocked}
-                    className="w-full bg-transparent text-base text-white outline-none placeholder:text-white/40 disabled:opacity-50"
-                  />
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowSenha((v) => !v)}
-                  aria-label={showSenha ? 'Ocultar senha' : 'Mostrar senha'}
-                  className="shrink-0 text-white/80 transition-colors hover:text-white"
-                >
-                  {showSenha ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </label>
-
-              <div className="flex justify-end">
-                <a
-                  href={SUPPORT_WHATSAPP}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-sm font-medium text-[#25D366] transition-colors hover:text-[#4be57f]"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Esqueci a senha — falar com suporte
-                </a>
+            /* Header com Boas-vindas da Referência */
+            <div className="mt-7">
+              <div className="animate-fade-in-up">
+                <h2 className="text-2xl sm:text-[26px] font-bold tracking-tight text-white">
+                  Bem-vindo de volta!
+                </h2>
+                <p className="mt-1 text-sm text-white/60">
+                  Acesse sua conta e continue fazendo sua marca crescer.
+                </p>
               </div>
 
-              <button
-                type="submit"
-                disabled={isFormBlocked}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA1D2C] py-4 text-base font-semibold text-white transition-colors hover:bg-[#d01926] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading
-                  ? 'Entrando...'
-                  : lockStatus.isLocked
-                    ? `Aguarde (${lockStatus.remainingSeconds}s)`
-                    : rateLimitStatus.isLimited
-                      ? `Aguarde (${rateLimitStatus.remainingSeconds}s)`
-                      : 'Entrar'}
-                {!loading && !lockStatus.isLocked && !rateLimitStatus.isLimited && (
-                  <ArrowRight className="h-5 w-5" />
-                )}
-              </button>
+              {/* Form de login */}
+              <form onSubmit={handleLogin} className="mt-6 space-y-4">
+                {/* Campo E-mail ou Usuário */}
+                <label className="flex items-center gap-3.5 rounded-2xl border border-white/10 bg-[#121212]/90 px-4.5 py-3.5 backdrop-blur-md transition-all duration-200 focus-within:border-[#EA1D2C] focus-within:ring-2 focus-within:ring-[#EA1D2C]/20 hover:border-white/20">
+                  <Mail className="h-5 w-5 shrink-0 text-white/50" />
+                  <span className="flex w-full flex-col">
+                    <span className="text-[11px] font-medium text-white/50">E-mail ou Usuário</span>
+                    <input
+                      type="text"
+                      value={usuario}
+                      onChange={(e) => setUsuario(e.target.value)}
+                      placeholder="voce@restaurante.com ou @usuario"
+                      autoComplete="username"
+                      disabled={isFormBlocked}
+                      className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35 disabled:opacity-50"
+                    />
+                  </span>
+                </label>
 
-              <div className="relative">
+                {/* Campo Senha */}
+                <label className="flex items-center gap-3.5 rounded-2xl border border-white/10 bg-[#121212]/90 px-4.5 py-3.5 backdrop-blur-md transition-all duration-200 focus-within:border-[#EA1D2C] focus-within:ring-2 focus-within:ring-[#EA1D2C]/20 hover:border-white/20">
+                  <Lock className="h-5 w-5 shrink-0 text-white/50" />
+                  <span className="flex w-full flex-col">
+                    <span className="text-[11px] font-medium text-white/50">Senha</span>
+                    <input
+                      type={showSenha ? 'text' : 'password'}
+                      value={senha}
+                      onChange={(e) => setSenha(e.target.value)}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      disabled={isFormBlocked}
+                      className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35 disabled:opacity-50"
+                    />
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSenha((v) => !v)}
+                    aria-label={showSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                    className="shrink-0 text-white/50 transition-colors hover:text-white p-1"
+                  >
+                    {showSenha ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                  </button>
+                </label>
+
+                {/* Linha Esqueci minha senha com checkbox vermelho estilo referência */}
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center gap-2 text-xs sm:text-sm text-white/70 hover:text-white transition-colors cursor-pointer select-none group/forgot">
+                    <input
+                      type="checkbox"
+                      checked={lembrarMe}
+                      onChange={(e) => setLembrarMe(e.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-white/5 accent-[#EA1D2C] cursor-pointer"
+                    />
+                    <span className="group-hover/forgot:underline">Esqueci minha senha</span>
+                  </label>
+                  <a
+                    href={SUPPORT_WHATSAPP}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-white/40 hover:text-[#EA1D2C] transition-colors"
+                  >
+                    Suporte
+                  </a>
+                </div>
+
+                {/* Botão Entrar com efeito de iluminação suave */}
+                <button
+                  type="submit"
+                  disabled={isFormBlocked}
+                  className="relative overflow-hidden flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EA1D2C] to-[#E31020] py-3.5 text-base font-bold text-white shadow-lg shadow-[#EA1D2C]/30 transition-all duration-300 hover:brightness-110 hover:shadow-[#EA1D2C]/50 hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="absolute inset-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none animate-btn-shimmer" />
+
+                  {loading
+                    ? 'Entrando...'
+                    : lockStatus.isLocked
+                      ? `Aguarde (${lockStatus.remainingSeconds}s)`
+                      : rateLimitStatus.isLimited
+                        ? `Aguarde (${rateLimitStatus.remainingSeconds}s)`
+                        : 'Entrar'}
+                  {!loading && !lockStatus.isLocked && !rateLimitStatus.isLimited && (
+                    <ArrowRight className="h-5 w-5" />
+                  )}
+                </button>
+
+                {/* Botão Primeiro acesso com fundo escuro e borda discreta */}
                 <button
                   type="button"
                   id="btn-primeiro-acesso"
@@ -556,14 +574,19 @@ function LoginPage() {
                     setConfirmar('');
                     setModo('cadastro');
                   }}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 py-4 text-base font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#121212]/80 py-3.5 text-sm sm:text-base font-semibold text-white/90 transition-all duration-200 hover:bg-white/[0.08] hover:border-white/25 hover:text-white active:scale-[0.99] disabled:opacity-50"
                 >
-                  <UserPlus className="h-5 w-5" />
+                  <UserPlus className="h-4.5 w-4.5" />
                   Primeiro acesso
                 </button>
-                <ArrowHint className="absolute -right-32 top-1/2 -translate-y-1/2 z-30" />
-              </div>
-            </form>
+
+                {/* Selo de Segurança */}
+                <div className="pt-2 flex items-center gap-2 text-xs text-white/45">
+                  <Lock className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                  <span>Seus dados estão seguros. Utilizamos as melhores práticas de segurança.</span>
+                </div>
+              </form>
+            </div>
           ) : (
             /* Form de primeiro acesso */
             <form onSubmit={handleCadastro} className="mt-8 space-y-4">
@@ -764,28 +787,40 @@ function LoginPage() {
           )}
         </div>
 
-        {/* Coluna 2: Central — ValuePanel (Desktop ao centro; Mobile abaixo do form) */}
-        <div className="w-full lg:max-w-[520px] lg:shrink-0 mt-8 lg:mt-0 relative z-10">
-          {/* Desktop ValuePanel */}
-          <div className="hidden lg:block">
-            <ValuePanel variant="desktop" />
-          </div>
-          {/* Mobile ValuePanel (exibido abaixo do formulário) */}
-          {!emailPendente && (
-            <div className="block lg:hidden pt-4 border-t border-[#2A2A2A]/80">
-              <ValuePanel variant="mobile" />
-            </div>
-          )}
+        {/* Coluna 2: Central — Serviços Informativos (Desktop) */}
+        <div className="hidden lg:block w-full max-w-[460px] relative z-10 pl-2">
+          <ServicesSection variant="desktop" />
         </div>
 
-        {/* Coluna 3: Direita — Área aberta mantendo o rosto do chef no canto superior direito */}
-        <div className="hidden lg:flex flex-1 min-h-[360px] pointer-events-none select-none" aria-hidden="true" />
+        {/* Coluna 3: Direita — Celular Flutuante com Badges iFood, 99 e Instagram (Desktop) */}
+        <div className="hidden lg:flex flex-1 justify-center items-center relative z-10 min-h-[460px]">
+          <PhoneHero variant="desktop" />
+        </div>
       </div>
 
-      {/* Rodapé Pequeno: "Hack do aiFood não é afiliado ao iFood." */}
-      <footer className="relative z-10 px-6 py-4 sm:px-10 lg:px-14 text-center lg:text-left text-sm text-white/50 border-t border-white/5">
-        Hack do aiFood não é afiliado ao iFood.
+      {/* ÁREA MOBILE: Exibida em telas < 1024px abaixo do formulário de login */}
+      <div className="block lg:hidden mt-8 space-y-8">
+        {!emailPendente && (
+          <>
+            <PhoneHero variant="mobile" />
+            <ServicesSection variant="mobile" className="border-t border-white/10 pt-8" />
+          </>
+        )}
+      </div>
+
+      {/* RODAPÉ DUPLO: Afiliado à esquerda, "Juntos vamos mais longe ✦" à direita */}
+      <footer className="mt-8 pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/45">
+        <div className="flex items-center gap-2 text-center sm:text-left">
+          <span>Hack do aiFood não é afiliado ao iFood.</span>
+        </div>
+
+        {/* Frase da referência visual no canto inferior direito */}
+        <div className="flex items-center gap-1.5 italic font-serif text-white/60 select-none">
+          <span>Juntos vamos mais longe</span>
+          <span className="text-[#EA1D2C] not-italic text-sm">✦</span>
+        </div>
       </footer>
     </div>
-  );
+  </div>
+);
 }
