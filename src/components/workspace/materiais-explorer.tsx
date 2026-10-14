@@ -120,8 +120,9 @@ export function MateriaisExplorer({
   }, [selectedPrato, materials]);
 
   const filteredPratos = useMemo(() => {
-    if (!searchQuery.trim()) return pratos;
-    const q = searchQuery.toLowerCase();
+    const trimmedQuery = safeTrim(searchQuery);
+    if (!trimmedQuery) return pratos;
+    const q = trimmedQuery.toLowerCase();
     return pratos.filter((p) => p.nome.toLowerCase().includes(q));
   }, [pratos, searchQuery]);
 

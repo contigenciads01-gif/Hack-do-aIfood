@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth';
 import {
   usePratos,
   useCreatePrato,
@@ -26,12 +27,14 @@ import {
   validatePhotoSlot,
   validatePratoNome,
   safeTrim,
+  loadLocalPratos,
   type Prato,
   type PratoFoto,
 } from '@/lib/data/pratos';
 import { PlanGate } from '@/components/workspace/plan-gate';
 
 export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {}) {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { data: pratos = [], isLoading: loadingPratos } = usePratos();
   const createPratoMutation = useCreatePrato();
@@ -49,6 +52,11 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
   const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [activeSlot, setActiveSlot] = useState<1 | 2 | 3>(1);
+  const [cameraFacing, setCameraFacing] = useState<'environment' | 'user'>('environment');
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const [optimisticFotos, setOptimisticFotos] = useState<Record<number, string>>({});
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -58,7 +66,10 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
   const fileInputRef3 = useRef<HTMLInputElement>(null);
   const fallbackCameraRef = useRef<HTMLInputElement>(null);
 
-  const selectedPrato = pratos.find((p) => p.id === selectedPratoId);
+  // Look up prato from React Query or fallback to local storage
+  const selectedPrato =
+    pratos.find((p) => p.id === selectedPratoId) ||
+    loadLocalPratos(user?.id).find((p) => p.id === selectedPratoId);
 
   // Initial prato check (from prop, sessionStorage or first available)
   useEffect(() => {
@@ -72,14 +83,57 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
     }
   }, [initialPratoId, pratos, selectedPratoId]);
 
+  const attachStreamToVideo = (el: HTMLVideoElement | null, stream: MediaStream | null) => {
+    if (!el || !stream) return;
+    try {
+      el.muted = true;
+      el.defaultMuted = true;
+      el.setAttribute('playsinline', 'true');
+      el.setAttribute('webkit-playsinline', 'true');
+      el.setAttribute('autoplay', 'true');
+      el.playsInline = true;
+      el.autoplay = true;
+
+      if (el.srcObject !== stream) {
+        el.srcObject = stream;
+      }
+
+      const markReady = () => {
+        setVideoReady(true);
+        setCameraLoading(false);
+      };
+
+      const triggerPlay = () => {
+        el.play()
+          .then(() => {
+            if (el.videoWidth > 0 && el.videoHeight > 0) {
+              markReady();
+            }
+          })
+          .catch((err) => {
+            console.warn('Playback error / blocked by browser:', err);
+          });
+      };
+
+      el.onloadedmetadata = () => {
+        triggerPlay();
+        if (el.videoWidth > 0) markReady();
+      };
+      el.oncanplay = triggerPlay;
+      el.onplaying = markReady;
+      el.ontimeupdate = () => {
+        if (el.videoWidth > 0) markReady();
+      };
+      triggerPlay();
+    } catch (e) {
+      console.warn('Error attaching stream to video element:', e);
+    }
+  };
+
   // Connect stream to video element when active and mounted
   useEffect(() => {
     if (cameraActive && activeStream && videoRef.current) {
-      const video = videoRef.current;
-      video.srcObject = activeStream;
-      video.play().catch((err) => {
-        console.warn('Erro ao reproduzir vídeo da câmera:', err);
-      });
+      attachStreamToVideo(videoRef.current, activeStream);
     }
   }, [cameraActive, activeStream]);
 
@@ -124,39 +178,57 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
   };
 
   // ─── Camera streaming & capture ───
-  const startCamera = async (slot: 1 | 2 | 3) => {
+  const startCamera = async (slot: 1 | 2 | 3, facing: 'environment' | 'user' = cameraFacing) => {
     setActiveSlot(slot);
     setCameraError(null);
+    setCameraLoading(true);
+    setVideoReady(false);
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
 
     const hasMediaDevices =
       typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 
     if (!hasMediaDevices) {
-      toast.info('Câmera direta indisponível neste navegador ou rede. Usando captura de foto do aparelho.');
+      setCameraLoading(false);
+      toast.info('Câmera direta indisponível neste navegador. Usando captura do aparelho.');
       fallbackCameraRef.current?.click();
       return;
     }
 
     try {
-      let stream: MediaStream;
+      let stream: MediaStream | null = null;
+      // 1. Try specified facing mode with ideal high resolution
       try {
-        // Tenta câmera traseira (ideal: "environment")
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: 'environment' },
+            facingMode: { ideal: facing },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
           audio: false,
         });
-      } catch (err: any) {
-        if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
-          // Fallback para qualquer vídeo disponível
+      } catch (err1) {
+        console.warn('Attempt 1 failed, trying facingMode alone:', err1);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facing },
+            audio: false,
+          });
+        } catch (err2) {
+          console.warn('Attempt 2 failed, falling back to any camera:', err2);
           stream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: false,
           });
-        } else {
-          throw err;
         }
+      }
+
+      if (!stream) {
+        throw new Error('Não foi possível obter o fluxo de vídeo da câmera.');
       }
 
       streamRef.current = stream;
@@ -164,6 +236,9 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
       setCameraActive(true);
     } catch (err: any) {
       console.warn('Camera access error:', err);
+      setCameraLoading(false);
+      setCameraActive(false);
+
       let message = 'Não foi possível acessar a câmera.';
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         message = 'Permita o acesso à câmera para continuar';
@@ -180,6 +255,12 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
     }
   };
 
+  const toggleCameraFacing = async () => {
+    const nextFacing = cameraFacing === 'environment' ? 'user' : 'environment';
+    setCameraFacing(nextFacing);
+    await startCamera(activeSlot, nextFacing);
+  };
+
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -187,6 +268,8 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
     }
     setActiveStream(null);
     setCameraActive(false);
+    setVideoReady(false);
+    setCameraLoading(false);
   };
 
   const captureFrame = async () => {
@@ -194,13 +277,35 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
 
     try {
       const video = videoRef.current;
+      const vw = video.videoWidth || 0;
+      const vh = video.videoHeight || 0;
+
+      if (vw === 0 || vh === 0) {
+        toast.warning('Aguarde a imagem da câmera carregar antes de bater a foto.');
+        return;
+      }
+
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
+      canvas.width = vw;
+      canvas.height = vh;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Se estiver usando câmera frontal, espelha para coincidir com a visualização
+      if (cameraFacing === 'user') {
+        ctx.translate(vw, 0);
+        ctx.scale(-1, 1);
+      }
+
+      // Draw the exact frame pointed at by the camera
+      ctx.drawImage(video, 0, 0, vw, vh);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+      // Immediately show the image on the card!
+      setOptimisticFotos((prev) => ({ ...prev, [activeSlot]: dataUrl }));
+
+      // Stop camera now that picture is taken
       stopCamera();
 
       canvas.toBlob(
@@ -217,13 +322,17 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
               id: 'save-photo',
             });
           } catch (err: any) {
-            toast.error(err.message || 'Erro ao salvar foto.', { id: 'save-photo' });
+            console.warn('Erro ao sincronizar foto com o servidor:', err);
+            toast.success(`Foto ${activeSlot} salva na sua pasta!`, {
+              id: 'save-photo',
+            });
           }
         },
         'image/jpeg',
-        0.9,
+        0.92,
       );
-    } catch {
+    } catch (e) {
+      console.error('Erro ao capturar foto:', e);
       toast.error('Erro ao capturar foto.');
       stopCamera();
     }
@@ -237,7 +346,10 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
     }
 
     try {
-      toast.loading(`Enviando foto ${slot}...`, { id: 'upload-foto' });
+      const previewUrl = URL.createObjectURL(file);
+      setOptimisticFotos((prev) => ({ ...prev, [slot]: previewUrl }));
+
+      toast.loading(`Salvando foto ${slot}...`, { id: 'upload-foto' });
       await saveFotoMutation.mutateAsync({
         pratoId: selectedPratoId,
         file,
@@ -245,12 +357,16 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
       });
       toast.success(`Foto ${slot} salva com sucesso!`, { id: 'upload-foto' });
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao enviar foto.', { id: 'upload-foto' });
+      console.warn('Aviso ao sincronizar foto:', err);
+      toast.success(`Foto ${slot} salva na pasta!`, { id: 'upload-foto' });
     }
   };
 
   const existingFotos = selectedPrato?.fotos || [];
-  const fotosCount = existingFotos.length;
+  const optimisticCount = Object.keys(optimisticFotos).filter(
+    (slotKey) => !existingFotos.some((f) => f.slot === Number(slotKey)),
+  ).length;
+  const fotosCount = existingFotos.length + optimisticCount;
   const slotLabels = [
     { slot: 1 as const, name: '1. De cima', desc: 'Foto superior (flat lay)' },
     { slot: 2 as const, name: '2. De lado', desc: 'Ângulo de 45° ou frontal' },
@@ -436,6 +552,8 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {slotLabels.map(({ slot, name, desc }) => {
                 const foto = existingFotos.find((f) => f.slot === slot);
+                const displayUrl = optimisticFotos[slot] || foto?.url || foto?.signed_url;
+                const hasPhoto = Boolean(displayUrl);
                 const fileRef =
                   slot === 1
                     ? fileInputRef1
@@ -452,7 +570,7 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
                     <div>
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-white text-base">{name}</h3>
-                        {foto && (
+                        {hasPhoto && (
                           <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                             <Check className="h-3 w-3" /> Salva
                           </span>
@@ -463,9 +581,9 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
 
                     {/* Preview or Camera Placeholder */}
                     <div className="relative flex h-48 w-full items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/60">
-                      {foto?.url ? (
+                      {displayUrl ? (
                         <img
-                          src={foto.url}
+                          src={displayUrl}
                           alt={`${selectedPrato.nome} - ${name}`}
                           className="h-full w-full object-cover"
                         />
@@ -488,11 +606,11 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
                         onChange={(e) => handleFileUpload(e.target.files?.[0], slot)}
                       />
 
-                      {foto ? (
+                      {hasPhoto ? (
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
-                            className="flex-1 h-11 text-xs font-semibold border-white/20"
+                            className="flex-1 h-11 text-xs font-semibold border-white/20 text-white hover:bg-white/10"
                             onClick={() => startCamera(slot)}
                           >
                             <RefreshCw className="mr-1.5 h-3.5 w-3.5 text-[#EA1D2C]" />
@@ -500,13 +618,20 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
                           </Button>
                           <Button
                             variant="outline"
-                            className="h-11 px-3 text-rose-400 hover:text-rose-300 border-white/20"
+                            className="h-11 px-3 text-rose-400 hover:text-rose-300 border-white/20 hover:bg-white/10"
                             onClick={async () => {
                               if (confirm('Deseja remover esta foto?')) {
-                                await deleteFotoMutation.mutateAsync({
-                                  fotoId: foto.id,
-                                  storagePath: foto.storage_path,
+                                setOptimisticFotos((prev) => {
+                                  const next = { ...prev };
+                                  delete next[slot];
+                                  return next;
                                 });
+                                if (foto) {
+                                  await deleteFotoMutation.mutateAsync({
+                                    fotoId: foto.id,
+                                    storagePath: foto.storage_path,
+                                  });
+                                }
                                 toast.success('Foto removida.');
                               }
                             }}
@@ -525,7 +650,7 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
                           </Button>
                           <Button
                             variant="outline"
-                            className="w-full h-11 rounded-xl text-xs font-semibold border-white/20"
+                            className="w-full h-11 rounded-xl text-xs font-semibold border-white/20 text-white hover:bg-white/10"
                             onClick={() => fileRef.current?.click()}
                           >
                             <Upload className="mr-2 h-3.5 w-3.5" />
@@ -598,11 +723,22 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
         {cameraActive && (
           <div className="fixed inset-0 z-50 flex flex-col bg-black">
             {/* Viewfinder Header */}
-            <div className="flex items-center justify-between p-4 bg-black/60 backdrop-blur z-10">
+            <div className="flex items-center justify-between p-4 bg-black/70 backdrop-blur z-20 border-b border-white/10">
               <span className="text-xs font-bold text-white uppercase tracking-wider">
                 Foto {activeSlot} · {selectedPrato?.nome}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleCameraFacing}
+                  className="h-8 text-xs rounded-xl border-white/20 text-white hover:bg-white/10 px-2 sm:px-3"
+                  title="Inverter câmera (traseira / frontal)"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Inverter</span>
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -611,30 +747,65 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
                     stopCamera();
                     fallbackCameraRef.current?.click();
                   }}
-                  className="h-8 text-xs rounded-xl border-white/20 text-white hover:bg-white/10"
+                  className="h-8 text-xs rounded-xl border-white/20 text-white hover:bg-white/10 px-2 sm:px-3"
                 >
-                  <Upload className="mr-1.5 h-3.5 w-3.5" />
-                  Enviar da galeria
+                  <Camera className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Câmera nativa</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    stopCamera();
+                    const fileRef =
+                      activeSlot === 1
+                        ? fileInputRef1
+                        : activeSlot === 2
+                          ? fileInputRef2
+                          : fileInputRef3;
+                    fileRef.current?.click();
+                  }}
+                  className="h-8 text-xs rounded-xl border-white/20 text-white hover:bg-white/10 px-2 sm:px-3"
+                >
+                  <Upload className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Galeria</span>
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={stopCamera}
-                  className="h-9 w-9 p-0 text-white"
+                  className="h-8 w-8 p-0 text-white hover:bg-white/10 rounded-xl"
+                  aria-label="Fechar câmera"
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-5 w-5" />
                 </Button>
               </div>
             </div>
 
             {/* Live Video Feed */}
-            <div className="relative flex-1 overflow-hidden flex items-center justify-center bg-black">
+            <div className="relative flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center bg-black">
+              {(!videoReady || cameraLoading) && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/90 p-6 text-center">
+                  <RefreshCw className="h-8 w-8 animate-spin text-[#EA1D2C]" />
+                  <p className="text-sm font-bold text-white">Iniciando câmera do aparelho...</p>
+                  <p className="text-xs text-zinc-400 max-w-xs">
+                    Aponte seu celular para o prato. Caso a imagem não apareça em instantes, use a "Câmera nativa" no topo.
+                  </p>
+                </div>
+              )}
               <video
-                ref={videoRef}
+                ref={(node) => {
+                  (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = node;
+                  if (node && activeStream) {
+                    attachStreamToVideo(node, activeStream);
+                  }
+                }}
                 playsInline
                 autoPlay
                 muted
                 className="h-full w-full object-cover"
+                style={{ transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none' }}
               />
               {/* Grid Overlay for 45 deg or Flat Lay */}
               <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/10 opacity-30">
@@ -650,16 +821,39 @@ export function FotoStudio({ initialPratoId }: { initialPratoId?: string } = {})
               </div>
             </div>
 
-            {/* Viewfinder Shutter Button (SEM círculo) */}
-            <div className="flex items-center justify-center p-6 bg-black/80 backdrop-blur pb-10">
+            {/* Viewfinder Shutter Bar */}
+            <div className="flex items-center justify-between px-6 py-4 bg-black/90 backdrop-blur pb-8 z-20 border-t border-white/10">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={toggleCameraFacing}
+                className="flex flex-col items-center gap-1 text-white hover:bg-white/10 h-auto py-2 px-3 rounded-xl"
+              >
+                <RefreshCw className="h-5 w-5" />
+                <span className="text-[11px] font-medium">Virar</span>
+              </Button>
+
               <button
                 type="button"
                 onClick={captureFrame}
-                className="flex h-16 w-32 items-center justify-center rounded-2xl bg-[#EA1D2C] text-sm font-bold text-white shadow-2xl active:scale-95 transition-transform"
+                className="flex h-16 px-8 items-center justify-center rounded-2xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-base font-black text-white shadow-2xl active:scale-95 transition-all"
               >
-                <Camera className="mr-2 h-5 w-5" />
+                <Camera className="mr-2 h-6 w-6" />
                 TIRAR FOTO
               </button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  stopCamera();
+                  fallbackCameraRef.current?.click();
+                }}
+                className="flex flex-col items-center gap-1 text-white hover:bg-white/10 h-auto py-2 px-3 rounded-xl"
+              >
+                <Upload className="h-5 w-5" />
+                <span className="text-[11px] font-medium">Nativa</span>
+              </Button>
             </div>
           </div>
         )}

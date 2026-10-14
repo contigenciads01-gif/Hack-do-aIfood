@@ -40,10 +40,44 @@ export interface Prato {
 }
 
 const LOCAL_PRATOS_KEY = 'hdi_pratos';
-const LOCAL_FOTOS_KEY = 'hdi_prato_fotos';
 
 import { safeTrim } from '@/lib/utils';
 export { safeTrim };
+
+export function getLocalPratosKey(userId?: string | null): string {
+  return `hdi_pratos_${userId || 'guest'}`;
+}
+
+export function loadLocalPratos(userId?: string | null): Prato[] {
+  try {
+    const userKey = getLocalPratosKey(userId);
+    const data = localStorage.getItem(userKey);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+
+    const legacy = localStorage.getItem(LOCAL_PRATOS_KEY);
+    if (legacy) {
+      const parsedLegacy = JSON.parse(legacy);
+      if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) return parsedLegacy;
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalPratos(userId: string | undefined | null, pratos: Prato[]) {
+  try {
+    const userKey = getLocalPratosKey(userId);
+    const json = JSON.stringify(pratos);
+    localStorage.setItem(userKey, json);
+    localStorage.setItem(LOCAL_PRATOS_KEY, json);
+  } catch (e) {
+    console.warn('Failed to save pratos to localStorage:', e);
+  }
+}
 
 export interface PratoValidationResult {
   valid: boolean;
@@ -202,12 +236,10 @@ export function usePratos() {
   return useQuery({
     queryKey: ['pratos', user?.id],
     queryFn: async (): Promise<Prato[]> => {
+      const localList = loadLocalPratos(user?.id);
+
       if (!user?.id) {
-        try {
-          return JSON.parse(localStorage.getItem(LOCAL_PRATOS_KEY) || '[]');
-        } catch {
-          return [];
-        }
+        return localList;
       }
 
       try {
@@ -219,30 +251,41 @@ export function usePratos() {
           .order('criado_em', { ascending: false });
 
         if (pratosError) {
-          console.warn('Pratos query fallback:', pratosError.message);
-          const cached = localStorage.getItem(`${LOCAL_PRATOS_KEY}_${user.id}`);
-          return cached ? JSON.parse(cached) : [];
-        }
-
-        if (!pratosData || pratosData.length === 0) {
-          return [];
+          console.warn('Pratos query fallback to local:', pratosError.message);
+          return localList;
         }
 
         // 2. Fetch fotos
-        const { data: fotosData } = await (supabase as any)
-          .from('prato_fotos')
-          .select('*')
-          .eq('user_id', user.id);
+        let fotosData: any[] = [];
+        try {
+          const { data, error: fotosError } = await (supabase as any)
+            .from('prato_fotos')
+            .select('*')
+            .eq('user_id', user.id);
+          if (!fotosError && data) {
+            fotosData = data;
+          }
+        } catch {
+          // table might not exist
+        }
 
         // 3. Fetch materials for checklist calculation
-        const { data: materialsData } = await supabase
-          .from('materials')
-          .select('id, prato_id, tool, tipo')
-          .eq('user_id', user.id);
+        let materialsData: any[] = [];
+        try {
+          const { data, error: matError } = await supabase
+            .from('materials')
+            .select('id, prato_id, tool, tipo')
+            .eq('user_id', user.id);
+          if (!matError && data) {
+            materialsData = data;
+          }
+        } catch {
+          // materials fallback
+        }
 
         // Sign photo URLs in parallel
         const fotosWithUrls: PratoFoto[] = await Promise.all(
-          (fotosData || []).map(async (f: any) => {
+          fotosData.map(async (f: any) => {
             const url = await getSignedPhotoUrl(f.storage_path);
             return {
               id: f.id,
@@ -257,34 +300,46 @@ export function usePratos() {
           }),
         );
 
-        const pratosList: Prato[] = pratosData.map((p: any) => {
-          const pratoFotos = fotosWithUrls
-            .filter((f) => f.prato_id === p.id)
-            .sort((a, b) => a.slot - b.slot);
+        const remotePratos: Prato[] = (pratosData || []).map((p: any) => {
+          const remoteFotos = fotosWithUrls.filter((f) => f.prato_id === p.id);
+          const localMatch = localList.find((lp) => lp.id === p.id);
+          const localFotos = localMatch?.fotos || localMatch?.prato_fotos || [];
 
-          const pratoMateriais = (materialsData || []).filter(
-            (m: any) => m.prato_id === p.id,
-          );
+          // Merge local and remote fotos (prefer remote if available, else keep local dataUrl)
+          const mergedFotosMap: Record<number, PratoFoto> = {};
+          localFotos.forEach((f) => {
+            mergedFotosMap[f.slot] = f;
+          });
+          remoteFotos.forEach((f) => {
+            mergedFotosMap[f.slot] = f;
+          });
+          const finalFotos = Object.values(mergedFotosMap).sort((a, b) => a.slot - b.slot);
 
-          const checklist = calculatePratoChecklist(pratoFotos, pratoMateriais as any);
+          const pratoMateriais = materialsData.filter((m: any) => m.prato_id === p.id);
+          const checklist = calculatePratoChecklist(finalFotos, pratoMateriais as any, p.id);
 
           return {
             id: p.id,
             user_id: p.user_id,
             nome: p.nome,
             criado_em: p.criado_em,
-            fotos: pratoFotos,
-            prato_fotos: pratoFotos,
+            fotos: finalFotos,
+            prato_fotos: finalFotos,
+            materiais: pratoMateriais as any,
             checklist,
           };
         });
 
-        localStorage.setItem(`${LOCAL_PRATOS_KEY}_${user.id}`, JSON.stringify(pratosList));
-        return pratosList;
+        // Merge any unsynced local pratos
+        const remoteIds = new Set(remotePratos.map((p) => p.id));
+        const unsynced = localList.filter((lp) => !remoteIds.has(lp.id));
+        const combined = [...remotePratos, ...unsynced];
+
+        saveLocalPratos(user.id, combined);
+        return combined;
       } catch (err) {
-        console.warn('Error fetching pratos:', err);
-        const cached = localStorage.getItem(`${LOCAL_PRATOS_KEY}_${user?.id}`);
-        return cached ? JSON.parse(cached) : [];
+        console.warn('Error fetching pratos, using local:', err);
+        return localList;
       }
     },
   });
@@ -324,54 +379,61 @@ export function useCreatePrato() {
       const id = crypto.randomUUID();
       const criado_em = new Date().toISOString();
 
-      if (user?.id) {
-        const { data, error } = await (supabase as any)
-          .from('pratos')
-          .insert({
-            id,
-            user_id: user.id,
-            nome: trimmedNome,
-          })
-          .select()
-          .single();
-
-        if (error) {
-          if (error.code === '23505') {
-            throw new Error('Você já tem um prato com esse nome.');
-          }
-          console.warn('Supabase pratos insert warning:', error);
-          throw new Error('Não foi possível salvar o prato agora. Tente novamente em instantes.');
-        }
-
-        return {
-          id: data.id,
-          user_id: data.user_id,
-          nome: data.nome,
-          criado_em: data.criado_em,
-          fotos: [],
-          checklist: calculatePratoChecklist([], []),
-        };
-      }
-
-      // Offline / Guest fallback
-      const offlinePrato: Prato = {
+      const newPrato: Prato = {
         id,
         user_id: userId,
         nome: trimmedNome,
         criado_em,
         fotos: [],
+        prato_fotos: [],
         checklist: calculatePratoChecklist([], []),
       };
 
-      const cached: Prato[] = JSON.parse(localStorage.getItem(LOCAL_PRATOS_KEY) || '[]');
-      if (cached.some((p) => safeTrim(p.nome).toLowerCase() === trimmedNome.toLowerCase())) {
+      // Always save to localStorage immediately to guarantee persistence
+      const currentLocal = loadLocalPratos(userId);
+      if (currentLocal.some((p) => safeTrim(p.nome).toLowerCase() === trimmedNome.toLowerCase())) {
         throw new Error('Você já tem um prato com esse nome.');
       }
-      cached.unshift(offlinePrato);
-      localStorage.setItem(LOCAL_PRATOS_KEY, JSON.stringify(cached));
-      return offlinePrato;
+      saveLocalPratos(userId, [newPrato, ...currentLocal]);
+
+      if (user?.id) {
+        try {
+          const { data, error } = await (supabase as any)
+            .from('pratos')
+            .insert({
+              id,
+              user_id: user.id,
+              nome: trimmedNome,
+            })
+            .select()
+            .single();
+
+          if (error) {
+            if (error.code === '23505') {
+              saveLocalPratos(userId, currentLocal);
+              throw new Error('Você já tem um prato com esse nome.');
+            }
+            console.warn('Supabase pratos insert warning (persisted locally):', error.message);
+          } else if (data) {
+            newPrato.id = data.id;
+            saveLocalPratos(userId, [newPrato, ...currentLocal]);
+          }
+        } catch (err: any) {
+          if (err.message === 'Você já tem um prato com esse nome.') throw err;
+          console.warn('Supabase pratos insert exception (persisted locally):', err);
+        }
+      }
+
+      return newPrato;
     },
-    onSuccess: () => {
+    onSuccess: (createdPrato) => {
+      queryClient.setQueryData(['pratos', user?.id], (old: Prato[] | undefined) => {
+        const list = old ? [...old] : [];
+        if (!list.some((p) => p.id === createdPrato.id)) {
+          return [createdPrato, ...list];
+        }
+        return list;
+      });
       queryClient.invalidateQueries({ queryKey: ['pratos'] });
     },
   });
@@ -391,27 +453,41 @@ export function useRenamePrato() {
         throw new Error(validation.error || 'Nome inválido.');
       }
       const trimmed = validation.trimmed;
+      const userId = user?.id || 'guest';
+
+      const allLocal = loadLocalPratos(userId);
+      if (allLocal.some((p) => p.id !== id && safeTrim(p.nome).toLowerCase() === trimmed.toLowerCase())) {
+        throw new Error('Você já tem um prato com esse nome.');
+      }
+      const updated = allLocal.map((p) => (p.id === id ? { ...p, nome: trimmed } : p));
+      saveLocalPratos(userId, updated);
 
       if (user?.id) {
-        const { error } = await (supabase as any)
-          .from('pratos')
-          .update({ nome: trimmed })
-          .eq('id', id)
-          .eq('user_id', user.id);
+        try {
+          const { error } = await (supabase as any)
+            .from('pratos')
+            .update({ nome: trimmed })
+            .eq('id', id)
+            .eq('user_id', user.id);
 
-        if (error) {
-          if (error.code === '23505') {
-            throw new Error('Você já tem um prato com esse nome.');
+          if (error) {
+            if (error.code === '23505') {
+              saveLocalPratos(userId, allLocal);
+              throw new Error('Você já tem um prato com esse nome.');
+            }
+            console.warn('Supabase rename prato warning (renamed locally):', error.message);
           }
-          throw new Error('Não foi possível renomear o prato agora.');
+        } catch (err: any) {
+          if (err.message === 'Você já tem um prato com esse nome.') throw err;
+          console.warn('Supabase rename prato exception (renamed locally):', err);
         }
       }
-
-      const cached: Prato[] = JSON.parse(localStorage.getItem(LOCAL_PRATOS_KEY) || '[]');
-      const updated = cached.map((p) => (p.id === id ? { ...p, nome: trimmed } : p));
-      localStorage.setItem(LOCAL_PRATOS_KEY, JSON.stringify(updated));
     },
-    onSuccess: () => {
+    onSuccess: (_, { id, novoNome }) => {
+      queryClient.setQueryData(['pratos', user?.id], (old: Prato[] | undefined) => {
+        if (!old) return old;
+        return old.map((p) => (p.id === id ? { ...p, nome: safeTrim(novoNome) } : p));
+      });
       queryClient.invalidateQueries({ queryKey: ['pratos'] });
     },
   });
@@ -426,17 +502,28 @@ export function useDeletePrato() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      if (user?.id) {
-        const { error } = await (supabase as any)
-          .from('pratos')
-          .delete()
-          .eq('id', id)
-          .eq('user_id', user.id);
+      const userId = user?.id || 'guest';
+      const allLocal = loadLocalPratos(userId);
+      const updated = allLocal.filter((p) => p.id !== id);
+      saveLocalPratos(userId, updated);
 
-        if (error) throw error;
+      if (user?.id) {
+        try {
+          await (supabase as any)
+            .from('pratos')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', user.id);
+        } catch (e) {
+          console.warn('Error deleting prato remotely:', e);
+        }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, id) => {
+      queryClient.setQueryData(['pratos', user?.id], (old: Prato[] | undefined) => {
+        if (!old) return old;
+        return old.filter((p) => p.id !== id);
+      });
       queryClient.invalidateQueries({ queryKey: ['pratos'] });
     },
   });
@@ -459,69 +546,108 @@ export function useSavePratoFoto() {
       pratoId: string;
       file: File | Blob;
       slot: 1 | 2 | 3;
-    }) => {
+    }): Promise<PratoFoto> => {
       if (slot < 1 || slot > 3) {
         throw new Error('O espaço da foto deve ser 1, 2 ou 3.');
       }
 
       const userId = user?.id || 'guest';
-      // Compress image to max 1600px
-      const fileObj = file instanceof File ? file : new File([file], `slot-${slot}.jpg`, { type: 'image/jpeg' });
-      const { blob } = await compressImage(fileObj, 1600, 0.88);
 
-      const ext = 'webp';
-      const storagePath = `${userId}/pratos/${pratoId}/slot-${slot}.${ext}`;
+      // 1. Convert to dataUrl immediately so we ALWAYS have a local preview
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      });
 
+      const photoId = crypto.randomUUID();
+      const storagePath = `${userId}/pratos/${pratoId}/slot-${slot}.webp`;
+
+      const savedFoto: PratoFoto = {
+        id: photoId,
+        prato_id: pratoId,
+        user_id: userId,
+        slot,
+        storage_path: storagePath,
+        url: dataUrl,
+        signed_url: dataUrl,
+        criado_em: new Date().toISOString(),
+      };
+
+      // Always save into local pratos list so it renders immediately
+      const allLocal = loadLocalPratos(userId);
+      const updatedPratos = allLocal.map((p) => {
+        if (p.id === pratoId) {
+          const oldFotos = (p.fotos || p.prato_fotos || []).filter((f) => f.slot !== slot);
+          const newFotos = [...oldFotos, savedFoto].sort((a, b) => a.slot - b.slot);
+          return {
+            ...p,
+            fotos: newFotos,
+            prato_fotos: newFotos,
+            checklist: calculatePratoChecklist(newFotos, p.materiais || [], p.id),
+          };
+        }
+        return p;
+      });
+      saveLocalPratos(userId, updatedPratos);
+
+      // Attempt remote upload if user is signed in
       if (user?.id) {
-        // Upload to company-assets bucket
-        const { error: uploadError } = await supabase.storage
-          .from('company-assets')
-          .upload(storagePath, blob, {
+        try {
+          const fileObj =
+            file instanceof File ? file : new File([file], `slot-${slot}.jpg`, { type: 'image/jpeg' });
+          const { blob } = await compressImage(fileObj, 1600, 0.88);
+
+          await supabase.storage.from('company-assets').upload(storagePath, blob, {
             contentType: 'image/webp',
             upsert: true,
           });
 
-        if (uploadError) {
-          console.warn('Storage upload warning:', uploadError.message);
+          const { data: fotoRecord } = await (supabase as any)
+            .from('prato_fotos')
+            .upsert(
+              {
+                prato_id: pratoId,
+                user_id: user.id,
+                slot,
+                storage_path: storagePath,
+              },
+              { onConflict: 'prato_id,slot' },
+            )
+            .select()
+            .single();
+
+          if (fotoRecord) {
+            const signedUrl = await getSignedPhotoUrl(storagePath);
+            savedFoto.id = fotoRecord.id;
+            savedFoto.url = signedUrl || dataUrl;
+            savedFoto.signed_url = signedUrl || dataUrl;
+          }
+        } catch (err) {
+          console.warn('Supabase foto upload/db warning (saved locally):', err);
         }
-
-        // Upsert into prato_fotos table
-        const { data: fotoRecord, error: dbError } = await (supabase as any)
-          .from('prato_fotos')
-          .upsert(
-            {
-              prato_id: pratoId,
-              user_id: user.id,
-              slot,
-              storage_path: storagePath,
-            },
-            { onConflict: 'prato_id,slot' },
-          )
-          .select()
-          .single();
-
-        if (dbError) throw dbError;
-
-        const signedUrl = await getSignedPhotoUrl(storagePath);
-        return { ...fotoRecord, url: signedUrl || URL.createObjectURL(blob) };
       }
 
-      // Guest / Offline fallback
-      return new Promise<{ id: string; prato_id: string; slot: 1 | 2 | 3; url: string; storage_path: string }>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve({
-            id: crypto.randomUUID(),
-            prato_id: pratoId,
-            slot,
-            storage_path: storagePath,
-            url: reader.result as string,
-          });
-        };
-        reader.readAsDataURL(blob);
-      });
+      return savedFoto;
     },
-    onSuccess: () => {
+    onSuccess: (savedFoto) => {
+      queryClient.setQueryData(['pratos', user?.id], (old: Prato[] | undefined) => {
+        if (!old) return old;
+        return old.map((p) => {
+          if (p.id === savedFoto.prato_id) {
+            const oldFotos = (p.fotos || p.prato_fotos || []).filter((f) => f.slot !== savedFoto.slot);
+            const newFotos = [...oldFotos, savedFoto].sort((a, b) => a.slot - b.slot);
+            return {
+              ...p,
+              fotos: newFotos,
+              prato_fotos: newFotos,
+              checklist: calculatePratoChecklist(newFotos, p.materiais || [], p.id),
+            };
+          }
+          return p;
+        });
+      });
       queryClient.invalidateQueries({ queryKey: ['pratos'] });
     },
   });
@@ -535,23 +661,50 @@ export function useDeletePratoFoto() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ fotoId, storagePath }: { fotoId: string; storagePath?: string }) => {
-      if (user?.id) {
-        if (storagePath) {
-          try {
-            await supabase.storage.from('company-assets').remove([storagePath]);
-          } catch (e) {
-            console.warn('Failed to remove from storage:', e);
-          }
+    mutationFn: async ({
+      fotoId,
+      storagePath,
+      pratoId,
+      slot,
+    }: {
+      fotoId: string;
+      storagePath?: string;
+      pratoId?: string;
+      slot?: number;
+    }) => {
+      const userId = user?.id || 'guest';
+
+      // Update local storage
+      const allLocal = loadLocalPratos(userId);
+      const updatedPratos = allLocal.map((p) => {
+        if (!pratoId || p.id === pratoId) {
+          const filtered = (p.fotos || p.prato_fotos || []).filter(
+            (f) => f.id !== fotoId && (!slot || f.slot !== slot),
+          );
+          return {
+            ...p,
+            fotos: filtered,
+            prato_fotos: filtered,
+            checklist: calculatePratoChecklist(filtered, p.materiais || [], p.id),
+          };
         }
+        return p;
+      });
+      saveLocalPratos(userId, updatedPratos);
 
-        const { error } = await (supabase as any)
-          .from('prato_fotos')
-          .delete()
-          .eq('id', fotoId)
-          .eq('user_id', user.id);
-
-        if (error) throw error;
+      if (user?.id) {
+        try {
+          if (storagePath) {
+            await supabase.storage.from('company-assets').remove([storagePath]);
+          }
+          await (supabase as any)
+            .from('prato_fotos')
+            .delete()
+            .eq('id', fotoId)
+            .eq('user_id', user.id);
+        } catch (e) {
+          console.warn('Error deleting photo remotely:', e);
+        }
       }
     },
     onSuccess: () => {
