@@ -30,8 +30,10 @@ import { supabase } from '@/integrations/supabase/client';
 export const Route = createFileRoute('/planos')({
   head: () => ({
     meta: [
-      { title: 'Planos e assinatura — Hack do aiFood' },
-      { name: 'description', content: 'Escolha o melhor plano para o seu restaurante delivery.' },
+      { title: 'Planos e Assinatura — hack du ifood' },
+      { name: 'description', content: 'Escolha o plano ideal para acelerar os pedidos e a lucratividade do seu delivery no iFood.' },
+      { property: 'og:title', content: 'Planos e Assinatura — hack du ifood' },
+      { property: 'og:description', content: 'Escolha o plano ideal para acelerar os pedidos do seu delivery.' },
     ],
   }),
   component: PlanosPage,

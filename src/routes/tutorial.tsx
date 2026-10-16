@@ -28,12 +28,14 @@ import { toast } from 'sonner';
 export const Route = createFileRoute('/tutorial')({
   head: () => ({
     meta: [
-      { title: 'Tutorial e Guia Oficial — Hack do iFood' },
+      { title: 'Tutorial e Guia Oficial — hack du ifood' },
       {
         name: 'description',
         content:
-          'Aprenda a tirar fotos certas, organizar pastas de pratos e usar prompts prontos que vendem mais no iFood e Instagram.',
+          'Aprenda a tirar as fotos certas, organizar pastas de pratos e usar prompts profissionais no ChatGPT para vender mais no iFood.',
       },
+      { property: 'og:title', content: 'Tutorial e Guia Oficial — hack du ifood' },
+      { property: 'og:description', content: 'Guia completo de fotos, materiais e prompts para seu delivery.' },
     ],
   }),
   component: TutorialPage,

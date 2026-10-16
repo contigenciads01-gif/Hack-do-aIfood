@@ -75,7 +75,7 @@ export function BrandProfileBar() {
     }
   };
 
-  if (isLoading || !company) return null;
+  if (!user || isLoading || !company) return null;
 
   return (
     <>

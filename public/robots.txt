@@ -1,14 +1,21 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
 User-agent: *
+Disallow: /agente
+Disallow: /cadastro
+Disallow: /dashboard
+Disallow: /empresa
+Disallow: /materiais
+Disallow: /conta
+Disallow: /admin
+Disallow: /foto
+Disallow: /estudio
+Disallow: /imagem
+Disallow: /descricao
+Disallow: /anuncios
+Disallow: /promocoes
+Disallow: /avaliacoes
+Disallow: /pagina
+Disallow: /branding
+Disallow: /instagram
 Allow: /
+Allow: /planos
+Allow: /tutorial
