@@ -26,6 +26,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { openCompanyEditor } from '@/lib/company-editor-state';
 import {
   Dialog,
   DialogContent,
@@ -647,8 +648,13 @@ export function MateriaisExplorer({
               )}
 
               <div className="pt-4 border-t border-white/10 flex gap-2">
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/cadastro">Editar identidade completa</Link>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openCompanyEditor('identidade')}
+                >
+                  Editar identidade completa
                 </Button>
               </div>
             </div>

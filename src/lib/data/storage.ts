@@ -180,6 +180,40 @@ export async function uploadCompanyLogo(
   };
 }
 
+export async function uploadCompanyBanner(
+  file: File,
+  userId: string,
+): Promise<{ path: string; url: string }> {
+  const { blob } = await compressImage(file, 1600);
+  const ext = file.type === 'image/png' ? 'png' : 'jpg';
+  const path = `${userId}/banner-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('company-assets')
+    .upload(path, blob, {
+      contentType: file.type || 'image/jpeg',
+      upsert: true,
+    });
+
+  if (uploadError) {
+    console.warn('Storage banner upload warning:', uploadError.message);
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ path, url: reader.result as string });
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  const { data: signData } = await supabase.storage
+    .from('company-assets')
+    .createSignedUrl(path, 60 * 60 * 24 * 7);
+
+  return {
+    path,
+    url: signData?.signedUrl || URL.createObjectURL(blob),
+  };
+}
+
 export async function getSignedAssetUrl(path: string): Promise<string> {
   if (!path) return '';
   if (path.startsWith('http') || path.startsWith('data:')) return path;

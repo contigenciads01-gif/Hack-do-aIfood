@@ -22,6 +22,7 @@ import { PastePhotoButton } from '@/components/workspace/paste-photo';
 import { useAuth } from '@/lib/auth';
 import { useCompany } from '@/lib/data';
 import { PlanGate } from '@/components/workspace/plan-gate';
+import { openCompanyEditor } from '@/lib/company-editor-state';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -371,8 +372,12 @@ export function CompanyPage() {
           <Store size={40} />
           <h2>Empresa ainda não cadastrada</h2>
           <p>Complete seu perfil para que a IA personalize todos os seus prompts.</p>
-          <Button asChild className="mt-4 bg-[#EA1D2C] hover:bg-[#ff3b4b]">
-            <Link to="/cadastro">Cadastrar minha empresa</Link>
+          <Button
+            type="button"
+            onClick={() => openCompanyEditor('identidade')}
+            className="mt-4 bg-[#EA1D2C] hover:bg-[#ff3b4b]"
+          >
+            Cadastrar minha empresa
           </Button>
         </section>
       ) : (
@@ -395,8 +400,12 @@ export function CompanyPage() {
                   {company.cidade && <p className="text-xs text-white/60">{company.cidade}</p>}
                 </div>
               </div>
-              <Button asChild variant="outline">
-                <Link to="/cadastro">Editar cadastro completo</Link>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => openCompanyEditor('identidade')}
+              >
+                Editar dados da empresa
               </Button>
             </div>
 

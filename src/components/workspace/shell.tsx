@@ -10,9 +10,6 @@ import {
   Bell,
   Menu,
   Lock,
-  Upload,
-  X,
-  Edit2,
   ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -43,23 +40,22 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
-import { useCompany, useSaveCompany, isCompanyPlus } from '@/lib/data/company';
-import { uploadCompanyLogo } from '@/lib/data/storage';
+import { useCompany, isCompanyPlus } from '@/lib/data/company';
 import { PlusUpgradeModal } from '@/components/workspace/plus-upgrade-modal';
 import { useSubscription } from '@/lib/subscription';
 import { SHOW_CEREBRO_MARCA, TUTORIAL_BLOQUEANTE } from '@/config';
 import { GoldenBookIcon } from '@/components/ui/golden-book-icon';
 import { useTutorialProgress } from '@/lib/tutorial-progress';
 import { LogoHack } from '@/components/brand/LogoHack';
-import { LogoStudioModal } from '@/components/brand/LogoStudioModal';
 import { LogoSplash } from '@/components/brand/LogoSplash';
+import { CompanyEditorSheet } from '@/components/workspace/company-editor-sheet';
+import { openCompanyEditor, type CompanyEditorSection } from '@/lib/company-editor-state';
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { user, loading: authLoading, logout } = useAuth();
   const { data: company, isLoading: isCompanyLoading } = useCompany();
-  const saveCompanyMutation = useSaveCompany();
   const { access, subscription } = useSubscription();
   const { isCompleted: tutorialCompleted } = useTutorialProgress();
   const isPlus = isCompanyPlus(company);
@@ -68,62 +64,6 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showTutorialPopup, setShowTutorialPopup] = useState(false);
-  const [showCompanyModal, setShowCompanyModal] = useState(false);
-  const [showLogoStudio, setShowLogoStudio] = useState(false);
-
-  // Edit Company State for the popup
-  const [editNome, setEditNome] = useState('');
-  const [editSlogan, setEditSlogan] = useState('');
-  const [editCores, setEditCores] = useState<string[]>([]);
-  const [newColor, setNewColor] = useState('#EA1D2C');
-  const [savingCompany, setSavingCompany] = useState(false);
-
-  const openCompanyModal = () => {
-    if (company) {
-      setEditNome(company.nome || '');
-      setEditSlogan(company.slogan || '');
-      setEditCores(company.cores || ['#EA1D2C', '#181818']);
-    }
-    setMenu(false);
-    setShowCompanyModal(true);
-  };
-
-  const handleSaveCompany = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editNome.trim()) {
-      toast.error('Informe o nome da empresa.');
-      return;
-    }
-    setSavingCompany(true);
-    try {
-      await saveCompanyMutation.mutateAsync({
-        nome: editNome.trim(),
-        slogan: editSlogan.trim(),
-        cores: editCores,
-      });
-      toast.success('Perfil da empresa atualizado com sucesso!');
-      setShowCompanyModal(false);
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao atualizar dados.');
-    } finally {
-      setSavingCompany(false);
-    }
-  };
-
-  const handleLogoUpload = async (file?: File) => {
-    if (!file || !user?.id) return;
-    try {
-      toast.loading('Enviando nova logo...', { id: 'shell-upload-logo' });
-      const { path } = await uploadCompanyLogo(file, user.id);
-      await saveCompanyMutation.mutateAsync({
-        tem_logo: true,
-        logo_path: path,
-      });
-      toast.success('Logo atualizada com sucesso!', { id: 'shell-upload-logo' });
-    } catch {
-      toast.error('Erro ao enviar imagem da logo.', { id: 'shell-upload-logo' });
-    }
-  };
 
   // 1. Auth Protection
   useEffect(() => {
@@ -264,74 +204,165 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <SheetDescription>Navegue pelo Agente e pelas configurações da loja</SheetDescription>
           </SheetHeader>
 
-          {/* ─── BLOCO FIXO NO TOPO: CABEÇALHO DA EMPRESA ─── */}
-          <div className="p-5 border-b border-white/10 bg-[#161618]">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={openCompanyModal}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  openCompanyModal();
-                }
-              }}
-              className="group flex items-center justify-between gap-3 p-2.5 -m-1 rounded-2xl hover:bg-white/5 transition-colors cursor-pointer select-none"
-              title="Toque para ver e editar os dados da sua empresa"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                {/* Logo ou Iniciais em quadrado arredondado (SEM CÍRCULO) */}
-                {company?.tem_logo && company?.logo_path ? (
-                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-0.5">
-                    <img
-                      src={company.logo_path}
-                      alt={company.nome || 'Logo'}
-                      className="h-full w-full object-contain"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EA1D2C] text-sm font-black text-white shadow-md">
-                    {(company?.nome || 'H').slice(0, 2).toUpperCase()}
-                  </div>
-                )}
+          {/* ─── BLOCO FIXO NO TOPO: CARD MINHA EMPRESA ─── */}
+          {(() => {
+            const hasLogo = Boolean(company?.tem_logo && company?.logo_path);
+            const hasColors = Boolean(company?.cores && company.cores.length >= 2);
+            const hasWhatsapp = Boolean(company?.whatsapp?.trim());
+            const hasAddress = Boolean((company?.endereco as any)?.cep || company?.cidade?.trim());
+            const hasHours = Boolean(
+              company?.horario?.trim() ||
+                (company?.horario_funcionamento &&
+                  typeof company.horario_funcionamento === 'object' &&
+                  Object.values(company.horario_funcionamento).some((d: any) => d?.aberto)),
+            );
+            const hasBanner = Boolean(company?.banner_path?.trim());
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-bold text-sm text-white truncate group-hover:text-[#EA1D2C] transition-colors">
-                      {company?.nome || 'Minha Loja'}
-                    </h3>
+            const filledCount = [hasLogo, hasColors, hasWhatsapp, hasAddress, hasHours, hasBanner].filter(Boolean).length;
+            const completionPct = Math.round((filledCount / 6) * 100);
+
+            const missingChips: Array<{ label: string; section: CompanyEditorSection }> = [];
+            if (!hasWhatsapp) missingChips.push({ label: '+ WhatsApp', section: 'contato' });
+            if (!hasHours) missingChips.push({ label: '+ Horário', section: 'negocio' });
+            if (!hasAddress) missingChips.push({ label: '+ Endereço', section: 'localizacao' });
+            if (!hasBanner) missingChips.push({ label: '+ Banner', section: 'identidade' });
+            if (!hasLogo) missingChips.push({ label: '+ Logo', section: 'identidade' });
+
+            const cardGradient =
+              company?.cores && company.cores.length >= 2
+                ? `linear-gradient(135deg, ${company.cores[0]} 0%, #111111 50%, ${company.cores[1] || company.cores[0]} 100%)`
+                : 'linear-gradient(135deg, #EA1D2C 0%, #1A1A1A 100%)';
+
+            return (
+              <div className="p-4 border-b border-white/10 bg-[#161618]">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Store className="h-3.5 w-3.5 text-[#EA1D2C]" />
+                    Minha empresa
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-medium">Toque para editar</span>
+                </div>
+
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setMenu(false);
+                    openCompanyEditor('identidade');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setMenu(false);
+                      openCompanyEditor('identidade');
+                    }
+                  }}
+                  className="group relative rounded-2xl border border-white/15 overflow-hidden transition-all hover:border-[#EA1D2C]/60 hover:shadow-lg cursor-pointer bg-black/40 select-none"
+                  title="Toque para editar os dados da sua empresa"
+                >
+                  {/* Banner Thumbnail (com degradê fallback da marca) */}
+                  <div
+                    className="h-16 w-full relative"
+                    style={{
+                      background: company?.banner_path
+                        ? `url(${company.banner_path}) center/cover no-repeat`
+                        : cardGradient,
+                    }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
                   </div>
 
-                  {/* Plano e dias restantes */}
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {access.hasAccess ? (
-                      <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 truncate">
-                        {access.planName} · {access.formattedRemaining}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
-                        Sem plano ativo
-                      </span>
-                    )}
+                  {/* Info row */}
+                  <div className="p-3 pt-0 relative -mt-6">
+                    <div className="flex items-end justify-between gap-2.5">
+                      {/* Logo ou Iniciais em quadrado arredondado (SEM CÍRCULO) */}
+                      {company?.tem_logo && company?.logo_path ? (
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border-2 border-[#161618] bg-black shadow-md p-0.5">
+                          <img
+                            src={company.logo_path}
+                            alt={company.nome || 'Logo'}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-2 border-[#161618] bg-[#EA1D2C] text-sm font-black text-white shadow-md">
+                          {(company?.nome || 'H').slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+
+                      {/* Plano Badge */}
+                      <div className="pb-0.5">
+                        {access.hasAccess ? (
+                          <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/30 truncate block">
+                            {access.planName} · {access.formattedRemaining}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-lg border border-rose-500/30 block">
+                            Sem plano ativo
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-2">
+                      <h3 className="font-black text-sm text-white truncate group-hover:text-[#EA1D2C] transition-colors">
+                        {company?.nome || 'Minha Loja'}
+                      </h3>
+                      {company?.categoria && (
+                        <p className="text-[11px] text-zinc-400 truncate">{company.categoria}</p>
+                      )}
+                    </div>
+
+                    {/* Barra de Perfil X% Completo */}
+                    <div className="mt-3 pt-2.5 border-t border-white/10">
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-zinc-400 font-medium">Perfil da marca</span>
+                        <span className="font-bold text-[#EA1D2C]">{completionPct}% completo</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-[#EA1D2C] to-[#ff5967] transition-all duration-500 rounded-full"
+                          style={{ width: `${completionPct}%` }}
+                        />
+                      </div>
+
+                      {/* Missing Chips */}
+                      {missingChips.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {missingChips.slice(0, 3).map((chip, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenu(false);
+                                openCompanyEditor(chip.section);
+                              }}
+                              className="text-[10px] font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                            >
+                              {chip.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <ChevronRight className="h-4 w-4 text-white/40 group-hover:text-white shrink-0 transition-transform group-hover:translate-x-0.5" />
-            </div>
-
-            {!access.hasAccess && (
-              <div className="mt-2.5 pt-2 border-t border-white/10 flex justify-end">
-                <Link
-                  to="/planos"
-                  onClick={() => setMenu(false)}
-                  className="text-xs font-bold text-[#EA1D2C] hover:underline"
-                >
-                  Escolher plano agora →
-                </Link>
+                {!access.hasAccess && (
+                  <div className="mt-2 pt-2 border-t border-white/10 flex justify-end">
+                    <Link
+                      to="/planos"
+                      onClick={() => setMenu(false)}
+                      className="text-xs font-bold text-[#EA1D2C] hover:underline"
+                    >
+                      Escolher plano agora →
+                    </Link>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
 
           {/* ─── LISTA DE NAVEGAÇÃO REORGANIZADA ─── */}
           <nav aria-label="Menu principal" className="flex-1 overflow-y-auto p-4 space-y-1.5">
@@ -443,7 +474,10 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <Button
               type="button"
               variant="ghost"
-              onClick={openCompanyModal}
+              onClick={() => {
+                setMenu(false);
+                openCompanyEditor('identidade');
+              }}
               className="w-full h-12 justify-start rounded-2xl px-4 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/5 gap-3"
             >
               <Store className="h-4 w-4 text-zinc-400 shrink-0" />
@@ -468,159 +502,8 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         </SheetContent>
       </Sheet>
 
-      {/* ═══════ POP-UP "MINHA EMPRESA" (VER E EDITAR) ═══════ */}
-      <Dialog open={showCompanyModal} onOpenChange={setShowCompanyModal}>
-        <DialogContent className="border-white/15 bg-[#141414] text-white max-w-lg rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-black">Minha empresa</DialogTitle>
-            <DialogDescription className="text-white/60 text-xs">
-              Veja e edite os dados cadastrais da sua loja. As alterações são sincronizadas
-              diretamente em todos os prompts do Agente.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleSaveCompany} className="space-y-4 pt-2">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/70">
-                Nome da loja
-              </label>
-              <input
-                type="text"
-                value={editNome}
-                onChange={(e) => setEditNome(e.target.value)}
-                className="mt-1 w-full rounded-2xl border border-white/15 bg-black/50 p-3 text-sm text-white focus:border-[#EA1D2C] focus:outline-hidden"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/70">
-                Slogan
-              </label>
-              <input
-                type="text"
-                value={editSlogan}
-                onChange={(e) => setEditSlogan(e.target.value)}
-                placeholder="Ex.: O autêntico sabor artesanal"
-                className="mt-1 w-full rounded-2xl border border-white/15 bg-black/50 p-3 text-sm text-white focus:border-[#EA1D2C] focus:outline-hidden"
-              />
-            </div>
-
-            {/* Logo Change */}
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/70">
-                Logo da loja
-              </label>
-              <div className="mt-1 flex flex-wrap items-center gap-2.5">
-                <Button asChild size="sm" variant="outline" className="text-xs border-white/20 rounded-xl">
-                  <label className="cursor-pointer">
-                    <Upload className="mr-1.5 h-3.5 w-3.5" />
-                    Enviar logo (Arquivo)
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      onChange={(e) => handleLogoUpload(e.target.files?.[0])}
-                    />
-                  </label>
-                </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowLogoStudio(true)}
-                  className="text-xs border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 rounded-xl gap-1.5 cursor-pointer"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Criar logo (Estúdio)
-                </Button>
-                {company?.tem_logo && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={async () => {
-                      await saveCompanyMutation.mutateAsync({
-                        tem_logo: false,
-                        logo_path: null,
-                      });
-                      toast.success('Definido como sem logo.');
-                    }}
-                    className="text-xs text-white/50 hover:text-white rounded-xl"
-                  >
-                    Usar sem logo
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Colors */}
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/70">
-                Cores da marca
-              </label>
-              <div className="mt-2 flex flex-wrap gap-2 items-center">
-                {editCores.map((c, i) => (
-                  <div
-                    key={i}
-                    className="group relative flex items-center gap-1.5 rounded-lg border border-white/20 px-2 py-1 bg-black/40 text-xs"
-                  >
-                    <span className="h-3.5 w-3.5 rounded-xs" style={{ backgroundColor: c }} />
-                    <span className="font-mono">{c}</span>
-                    <button
-                      type="button"
-                      onClick={() => setEditCores(editCores.filter((_, idx) => idx !== i))}
-                      className="text-white/40 hover:text-white ml-1"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="color"
-                    value={newColor}
-                    onChange={(e) => setNewColor(e.target.value)}
-                    className="h-8 w-8 cursor-pointer rounded-lg border border-white/20 bg-transparent p-0"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (!editCores.includes(newColor)) {
-                        setEditCores([...editCores, newColor]);
-                      }
-                    }}
-                    className="text-xs h-8 px-2 border-white/20 rounded-xl"
-                  >
-                    Adicionar
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="pt-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowCompanyModal(false)}
-                className="border-white/20 rounded-xl"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={savingCompany}
-                className="bg-[#EA1D2C] font-bold hover:bg-[#ff3b4b] rounded-xl"
-              >
-                {savingCompany ? 'Salvando...' : 'Salvar perfil'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* ═══════ PAINEL LATERAL RADIX SHEET: MINHA EMPRESA (4 SEÇÕES) ═══════ */}
+      <CompanyEditorSheet />
 
       {/* Accessible Logout Confirmation AlertDialog */}
       <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
@@ -678,21 +561,6 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* ═══════ ESTÚDIO DE CRIAÇÃO DE LOGO ═══════ */}
-      <LogoStudioModal
-        open={showLogoStudio}
-        onOpenChange={setShowLogoStudio}
-        defaultStoreName={company?.nome || editNome}
-        defaultNiche={company?.categoria || 'Hamburgueria'}
-        onSelectPalette={async (colors) => {
-          setEditCores(colors);
-          await saveCompanyMutation.mutateAsync({
-            cores: colors,
-          });
-          toast.success('Paleta de cores aplicada à sua empresa!');
-        }}
-      />
 
       {/* ═══════ SPLASH ANIMADO DO LOGO PÓS-LOGIN (UMA VEZ POR SESSÃO) ═══════ */}
       <LogoSplash />

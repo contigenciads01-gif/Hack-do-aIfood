@@ -18,6 +18,7 @@ import { useCompany, isCompanyPlus } from '@/lib/data/company';
 import { buildMetaprompt } from '@/lib/metaprompt';
 import { PlusUpgradeModal } from './plus-upgrade-modal';
 import { ToolPage } from './pages';
+import { openCompanyEditor } from '@/lib/company-editor-state';
 
 export function AnunciosPage() {
   const { data: company, isLoading } = useCompany();
@@ -180,9 +181,13 @@ export function AnunciosPage() {
             <strong>Complete o perfil da sua loja</strong>
             <p className="mt-0.5 text-xs text-amber-200/80">
               Para um anúncio 100% calibrado, preencha: {missingCompanyFields.join(', ')} no seu{' '}
-              <a href="/cadastro" className="underline font-bold">
-                cadastro da empresa
-              </a>
+              <button
+                type="button"
+                onClick={() => openCompanyEditor('identidade')}
+                className="underline font-bold hover:text-white cursor-pointer"
+              >
+                perfil da empresa
+              </button>
               .
             </p>
           </div>
