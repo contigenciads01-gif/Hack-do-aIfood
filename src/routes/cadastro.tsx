@@ -123,6 +123,13 @@ function CadastroPage() {
   const [estiloVisual, setEstiloVisual] = useState('Escuro');
   const [slogan, setSlogan] = useState('');
 
+  // Reverse guard: se o cadastro já estiver concluído, redireciona direto para /agente
+  useEffect(() => {
+    if (!companyLoading && company?.cadastro_concluido) {
+      navigate({ to: '/agente' });
+    }
+  }, [companyLoading, company?.cadastro_concluido, navigate]);
+
   // Hydrate if existing
   useEffect(() => {
     if (company) {
@@ -204,6 +211,13 @@ function CadastroPage() {
   const saveCurrentStep = async (nextPasso: number) => {
     setSalvando(true);
     const today = new Date().toISOString().split('T')[0] ?? '';
+    const hasRequired =
+      Boolean(nome.trim()) &&
+      Boolean(categoria) &&
+      cores.length >= 1 &&
+      (escolhaLogo === 'nao_tenho' || Boolean(logoPreview) || nextPasso > 2);
+    const isCompleted = company?.cadastro_concluido || hasRequired;
+
     try {
       await saveMutation.mutateAsync({
         nome: nome.trim(),
@@ -224,6 +238,7 @@ function CadastroPage() {
         estilo_visual: estiloVisual,
         slogan: slogan.trim() || null,
         cadastro_passo: nextPasso,
+        cadastro_concluido: isCompleted,
       });
       setPasso(nextPasso);
     } catch {
@@ -1079,7 +1094,17 @@ function CadastroPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 className="flex-1 py-5 text-base sm:text-lg font-bold bg-[#EA1D2C] hover:bg-[#ff3b4b] shadow-xl shadow-[#EA1D2C]/25"
-                onClick={() => navigate({ to: '/agente' })}
+                onClick={async () => {
+                  try {
+                    await saveMutation.mutateAsync({
+                      cadastro_concluido: true,
+                      cadastro_passo: 4,
+                    });
+                  } catch {
+                    // ignore
+                  }
+                  navigate({ to: '/agente' });
+                }}
               >
                 Ir para o Agente
                 <ArrowRight className="ml-2 h-5 w-5" />

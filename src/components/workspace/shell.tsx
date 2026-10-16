@@ -132,15 +132,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     }
   }, [authLoading, user, pathname, navigate]);
 
-  // 2. Empresa Obrigatória Protection
+  // 2. Empresa Obrigatória Protection: checa APENAS cadastro_concluido
   useEffect(() => {
     if (!authLoading && user && !isCompanyLoading && pathname !== '/' && pathname !== '/cadastro') {
       const isComplete =
-        company &&
-        Boolean(company.nome?.trim()) &&
-        Boolean(company.categoria?.trim()) &&
-        Boolean(company.cores && company.cores.length > 0) &&
-        (company.cadastro_passo ? company.cadastro_passo >= 4 : true);
+        company?.cadastro_concluido ??
+        (Boolean(company?.nome?.trim()) && Boolean(company?.categoria?.trim()));
 
       if (!isComplete) {
         navigate({ to: '/cadastro' });

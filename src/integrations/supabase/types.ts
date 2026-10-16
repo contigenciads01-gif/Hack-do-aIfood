@@ -35,6 +35,14 @@ export type Database = {
           data_inicio: string;
           nivel: number;
           cadastro_passo: number;
+          cadastro_concluido?: boolean | null;
+          banner_path?: string | null;
+          site?: string | null;
+          email_publico?: string | null;
+          endereco?: Json | null;
+          mostrar_endereco_anuncios?: boolean | null;
+          formas_atendimento?: string[] | null;
+          horario_funcionamento?: Json | null;
           created_at?: string;
           updated_at?: string;
           criado_em?: string;
@@ -62,6 +70,14 @@ export type Database = {
           data_inicio?: string;
           nivel?: number;
           cadastro_passo?: number;
+          cadastro_concluido?: boolean | null;
+          banner_path?: string | null;
+          site?: string | null;
+          email_publico?: string | null;
+          endereco?: Json | null;
+          mostrar_endereco_anuncios?: boolean | null;
+          formas_atendimento?: string[] | null;
+          horario_funcionamento?: Json | null;
           created_at?: string;
           updated_at?: string;
           criado_em?: string;
@@ -89,10 +105,75 @@ export type Database = {
           data_inicio?: string;
           nivel?: number;
           cadastro_passo?: number;
+          cadastro_concluido?: boolean | null;
+          banner_path?: string | null;
+          site?: string | null;
+          email_publico?: string | null;
+          endereco?: Json | null;
+          mostrar_endereco_anuncios?: boolean | null;
+          formas_atendimento?: string[] | null;
+          horario_funcionamento?: Json | null;
           created_at?: string;
           updated_at?: string;
           criado_em?: string;
           atualizado_em?: string;
+        };
+        Relationships: [];
+      };
+      pratos: {
+        Row: {
+          id: string;
+          user_id: string;
+          nome: string;
+          ingredientes?: string[] | null;
+          preco?: number | null;
+          destaque?: string | null;
+          criado_em: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          nome: string;
+          ingredientes?: string[] | null;
+          preco?: number | null;
+          destaque?: string | null;
+          criado_em?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          nome?: string;
+          ingredientes?: string[] | null;
+          preco?: number | null;
+          destaque?: string | null;
+          criado_em?: string;
+        };
+        Relationships: [];
+      };
+      prato_fotos: {
+        Row: {
+          id: string;
+          prato_id: string;
+          user_id: string;
+          slot: number;
+          storage_path: string;
+          criado_em: string;
+        };
+        Insert: {
+          id?: string;
+          prato_id: string;
+          user_id: string;
+          slot: number;
+          storage_path: string;
+          criado_em?: string;
+        };
+        Update: {
+          id?: string;
+          prato_id?: string;
+          user_id?: string;
+          slot?: number;
+          storage_path?: string;
+          criado_em?: string;
         };
         Relationships: [];
       };

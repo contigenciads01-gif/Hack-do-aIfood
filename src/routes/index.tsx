@@ -103,11 +103,16 @@ function LoginPage() {
     try {
       const { data } = await supabase
         .from('companies')
-        .select('cadastro_passo')
+        .select('*')
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!data || (data.cadastro_passo ?? 1) < 4) {
+      const raw = data as any;
+      const isComplete =
+        raw?.cadastro_concluido ||
+        (Boolean(raw?.nome?.trim()) && Boolean(raw?.categoria?.trim()));
+
+      if (!data || !isComplete) {
         navigate({ to: '/cadastro' });
       } else {
         navigate({ to: '/agente' });

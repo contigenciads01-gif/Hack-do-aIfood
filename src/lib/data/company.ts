@@ -2,6 +2,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 
+export interface CompanyAddress {
+  rua?: string;
+  numero?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+  cep?: string;
+  complemento?: string;
+}
+
 export interface Company {
   id?: string | undefined;
   user_id: string;
@@ -26,6 +36,14 @@ export interface Company {
   nivel: number;
   plano?: 'gratuito' | 'plus' | string | undefined;
   cadastro_passo: number;
+  cadastro_concluido?: boolean | undefined;
+  banner_path?: string | null | undefined;
+  site?: string | null | undefined;
+  email_publico?: string | null | undefined;
+  endereco?: CompanyAddress | null | undefined;
+  mostrar_endereco_anuncios?: boolean | undefined;
+  formas_atendimento?: string[] | undefined;
+  horario_funcionamento?: Record<string, any> | null | undefined;
   created_at?: string | undefined;
   updated_at?: string | undefined;
 }
@@ -60,6 +78,12 @@ export function useCompany() {
         }
 
         if (data) {
+          const raw = data as any;
+          const isConcluido =
+            raw.cadastro_concluido !== undefined && raw.cadastro_concluido !== null
+              ? !!raw.cadastro_concluido
+              : Boolean(raw.nome?.trim()) && Boolean(raw.categoria?.trim());
+
           const parsed: Company = {
             id: data.id,
             user_id: data.user_id,
@@ -84,6 +108,16 @@ export function useCompany() {
             nivel: data.nivel ?? 1,
             plano: (data as any).plano ?? ((data.nivel ?? 1) >= 2 ? 'plus' : 'gratuito'),
             cadastro_passo: data.cadastro_passo ?? 1,
+            cadastro_concluido: isConcluido,
+            banner_path: (data as any).banner_path ?? null,
+            site: (data as any).site ?? null,
+            email_publico: (data as any).email_publico ?? null,
+            endereco: (data as any).endereco ?? null,
+            mostrar_endereco_anuncios: !!(data as any).mostrar_endereco_anuncios,
+            formas_atendimento: Array.isArray((data as any).formas_atendimento)
+              ? (data as any).formas_atendimento
+              : [],
+            horario_funcionamento: (data as any).horario_funcionamento ?? {},
             created_at: data.created_at,
             updated_at: data.updated_at,
           };
@@ -110,39 +144,73 @@ export function useSaveCompany() {
     mutationFn: async (payload: Partial<Company>): Promise<Company> => {
       if (!user?.id) throw new Error('Usuário não autenticado');
 
-      const companyData: Partial<Company> & { user_id: string } = {
+      // Get cached company to preserve fields if not supplied
+      let prevCompany: Partial<Company> = {};
+      try {
+        const cached = localStorage.getItem(`${LOCAL_COMPANY_KEY}_${user.id}`);
+        if (cached) prevCompany = JSON.parse(cached);
+      } catch {
+        // ignore
+      }
+
+      const mergedPayload: Partial<Company> = {
+        ...prevCompany,
         ...payload,
         user_id: user.id,
       };
 
+      const upsertData: Record<string, any> = {
+        user_id: user.id,
+        nome: mergedPayload.nome || 'Minha Loja',
+        categoria: mergedPayload.categoria || 'Outro',
+        cidade: mergedPayload.cidade || null,
+        whatsapp: mergedPayload.whatsapp || null,
+        instagram: mergedPayload.instagram || null,
+        horario: mergedPayload.horario || null,
+        slogan: mergedPayload.slogan || null,
+        tem_logo: mergedPayload.tem_logo ?? false,
+        logo_path: mergedPayload.logo_path || null,
+        cores: mergedPayload.cores || [],
+        personalidade: mergedPayload.personalidade || [],
+        tom: mergedPayload.tom || null,
+        publico: mergedPayload.publico || [],
+        faixa_preco: mergedPayload.faixa_preco || null,
+        diferenciais: mergedPayload.diferenciais || [],
+        estilo_visual: mergedPayload.estilo_visual || null,
+        data_inicio: mergedPayload.data_inicio ?? new Date().toISOString().split('T')[0] ?? '',
+        nivel: mergedPayload.nivel ?? 1,
+        cadastro_passo: mergedPayload.cadastro_passo ?? 1,
+      };
+
+      if (mergedPayload.cadastro_concluido !== undefined) {
+        upsertData['cadastro_concluido'] = mergedPayload.cadastro_concluido;
+      }
+      if (mergedPayload.banner_path !== undefined) {
+        upsertData['banner_path'] = mergedPayload.banner_path;
+      }
+      if (mergedPayload.site !== undefined) {
+        upsertData['site'] = mergedPayload.site;
+      }
+      if (mergedPayload.email_publico !== undefined) {
+        upsertData['email_publico'] = mergedPayload.email_publico;
+      }
+      if (mergedPayload.endereco !== undefined) {
+        upsertData['endereco'] = mergedPayload.endereco;
+      }
+      if (mergedPayload.mostrar_endereco_anuncios !== undefined) {
+        upsertData['mostrar_endereco_anuncios'] = mergedPayload.mostrar_endereco_anuncios;
+      }
+      if (mergedPayload.formas_atendimento !== undefined) {
+        upsertData['formas_atendimento'] = mergedPayload.formas_atendimento;
+      }
+      if (mergedPayload.horario_funcionamento !== undefined) {
+        upsertData['horario_funcionamento'] = mergedPayload.horario_funcionamento;
+      }
+
       try {
         const { data, error } = await supabase
           .from('companies')
-          .upsert(
-            {
-              user_id: user.id,
-              nome: companyData.nome || 'Minha Loja',
-              categoria: companyData.categoria || 'Outro',
-              cidade: companyData.cidade || null,
-              whatsapp: companyData.whatsapp || null,
-              instagram: companyData.instagram || null,
-              horario: companyData.horario || null,
-              slogan: companyData.slogan || null,
-              tem_logo: companyData.tem_logo ?? false,
-              logo_path: companyData.logo_path || null,
-              cores: companyData.cores || [],
-              personalidade: companyData.personalidade || [],
-              tom: companyData.tom || null,
-              publico: companyData.publico || [],
-              faixa_preco: companyData.faixa_preco || null,
-              diferenciais: companyData.diferenciais || [],
-              estilo_visual: companyData.estilo_visual || null,
-              data_inicio: companyData.data_inicio ?? new Date().toISOString().split('T')[0] ?? '',
-              nivel: companyData.nivel ?? 1,
-              cadastro_passo: companyData.cadastro_passo ?? 1,
-            },
-            { onConflict: 'user_id' },
-          )
+          .upsert(upsertData, { onConflict: 'user_id' })
           .select()
           .single();
 
@@ -151,19 +219,23 @@ export function useSaveCompany() {
         }
 
         const merged: Company = {
-          ...payload,
-          user_id: user.id,
-          nome: payload.nome || 'Minha Loja',
-          categoria: payload.categoria || 'Outro',
-          tem_logo: payload.tem_logo ?? false,
-          cores: payload.cores || [],
-          personalidade: payload.personalidade || [],
-          publico: payload.publico || [],
-          diferenciais: payload.diferenciais || [],
-          data_inicio: payload.data_inicio || new Date().toISOString().split('T')[0],
-          nivel: payload.nivel ?? 1,
-          cadastro_passo: payload.cadastro_passo ?? 1,
+          ...mergedPayload,
           ...(data || {}),
+          user_id: user.id,
+          nome: mergedPayload.nome || 'Minha Loja',
+          categoria: mergedPayload.categoria || 'Outro',
+          tem_logo: mergedPayload.tem_logo ?? false,
+          cores: mergedPayload.cores || [],
+          personalidade: mergedPayload.personalidade || [],
+          publico: mergedPayload.publico || [],
+          diferenciais: mergedPayload.diferenciais || [],
+          data_inicio: mergedPayload.data_inicio || new Date().toISOString().split('T')[0],
+          nivel: mergedPayload.nivel ?? 1,
+          cadastro_passo: mergedPayload.cadastro_passo ?? 1,
+          cadastro_concluido:
+            (data as any)?.cadastro_concluido ??
+            mergedPayload.cadastro_concluido ??
+            (Boolean(mergedPayload.nome?.trim()) && Boolean(mergedPayload.categoria?.trim())),
         } as Company;
 
         localStorage.setItem(`${LOCAL_COMPANY_KEY}_${user.id}`, JSON.stringify(merged));
@@ -171,18 +243,21 @@ export function useSaveCompany() {
       } catch (err) {
         console.warn('Network error while saving company, saving locally:', err);
         const merged = {
-          ...payload,
+          ...mergedPayload,
           user_id: user.id,
-          nome: payload.nome || 'Minha Loja',
-          categoria: payload.categoria || 'Outro',
-          tem_logo: payload.tem_logo ?? false,
-          cores: payload.cores || [],
-          personalidade: payload.personalidade || [],
-          publico: payload.publico || [],
-          diferenciais: payload.diferenciais || [],
-          data_inicio: payload.data_inicio || new Date().toISOString().split('T')[0],
-          nivel: payload.nivel ?? 1,
-          cadastro_passo: payload.cadastro_passo ?? 1,
+          nome: mergedPayload.nome || 'Minha Loja',
+          categoria: mergedPayload.categoria || 'Outro',
+          tem_logo: mergedPayload.tem_logo ?? false,
+          cores: mergedPayload.cores || [],
+          personalidade: mergedPayload.personalidade || [],
+          publico: mergedPayload.publico || [],
+          diferenciais: mergedPayload.diferenciais || [],
+          data_inicio: mergedPayload.data_inicio || new Date().toISOString().split('T')[0],
+          nivel: mergedPayload.nivel ?? 1,
+          cadastro_passo: mergedPayload.cadastro_passo ?? 1,
+          cadastro_concluido:
+            mergedPayload.cadastro_concluido ??
+            (Boolean(mergedPayload.nome?.trim()) && Boolean(mergedPayload.categoria?.trim())),
         } as Company;
         localStorage.setItem(`${LOCAL_COMPANY_KEY}_${user.id}`, JSON.stringify(merged));
         return merged;
