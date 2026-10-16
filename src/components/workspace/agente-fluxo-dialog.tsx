@@ -420,10 +420,11 @@ export function AgenteFluxoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         hideCloseButton
-        className="border-white/15 bg-[#121214] text-white p-0 overflow-hidden sm:max-w-3xl w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col rounded-none sm:rounded-3xl relative"
+        className="border-white/15 bg-[#121214] text-white p-0 overflow-hidden sm:max-w-3xl w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col rounded-none sm:rounded-3xl"
       >
-        {/* ═══════ 900MS PROMPT BUILDING OVERLAY WITH ANIMATED BRAIN ═══════ */}
-        {isBuildingPrompt && (
+        <div className="relative w-full h-full flex flex-col overflow-hidden">
+          {/* ═══════ 900MS PROMPT BUILDING OVERLAY WITH ANIMATED BRAIN ═══════ */}
+          {isBuildingPrompt && (
           <div className="absolute inset-0 z-50 bg-[#0f0f11]/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
             <AnimatedBrain size={64} isHovered={true} className="mb-4" />
             <h3 className="text-xl font-black text-white tracking-wide">
@@ -1475,6 +1476,7 @@ export function AgenteFluxoDialog({
             </div>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );
