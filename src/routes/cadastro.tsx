@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth';
 import { useCompany, useSaveCompany, type Company } from '@/lib/data';
 import { extractDominantColors, uploadCompanyLogo } from '@/lib/data/storage';
 import { LogoHack } from '@/components/brand/LogoHack';
+import { LogoStudioModal } from '@/components/brand/LogoStudioModal';
 
 export const Route = createFileRoute('/cadastro')({
   head: () => ({
@@ -99,6 +100,7 @@ function CadastroPage() {
   const [escolhaLogo, setEscolhaLogo] = useState<'tenho' | 'nao_tenho'>('tenho');
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [logoPath, setLogoPath] = useState<string>('');
+  const [showLogoStudio, setShowLogoStudio] = useState(false);
   const [cores, setCores] = useState<string[]>([
     '#EA1D2C',
     '#1A1A1A',
@@ -502,12 +504,12 @@ function CadastroPage() {
               </p>
             </div>
 
-            {/* Two big option cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Three option cards: Já tenho logo | Criar logo (Estúdio) | Ainda não tenho logo */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() => setEscolhaLogo('tenho')}
-                className={`flex flex-col items-start rounded-2xl border p-6 text-left transition ${
+                className={`flex flex-col items-start rounded-2xl border p-5 text-left transition ${
                   escolhaLogo === 'tenho'
                     ? 'border-[#EA1D2C] bg-[#EA1D2C]/10 ring-1 ring-[#EA1D2C]'
                     : 'border-white/10 bg-[#181818] hover:border-white/20'
@@ -516,9 +518,28 @@ function CadastroPage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white">
                   <Upload className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 text-lg font-bold">Já tenho logo</h3>
+                <h3 className="mt-4 text-base font-bold text-white">Já tenho logo</h3>
                 <p className="mt-1 text-xs text-white/60">
                   Envie sua logo (PNG, JPG ou WebP) e extrairemos as cores oficiais da sua marca automaticamente.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowLogoStudio(true)}
+                className="flex flex-col items-start rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 text-left transition hover:border-amber-500/60 hover:bg-amber-500/10 group cursor-pointer"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400 text-black shadow-md shadow-amber-400/20 group-hover:scale-105 transition-transform">
+                  <Sparkles className="h-5 w-5 fill-black" />
+                </div>
+                <div className="mt-4 flex items-center gap-1.5">
+                  <h3 className="text-base font-bold text-white">Criar logo (Estúdio)</h3>
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-amber-400 text-black px-1.5 py-0.5 rounded">
+                    Novo
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-amber-200/80">
+                  Ideias por nicho, templates, paletas e prompts prontos para gerar sua logo com IA no ChatGPT.
                 </p>
               </button>
 
@@ -529,18 +550,18 @@ function CadastroPage() {
                   setLogoPreview('');
                   setLogoPath('');
                 }}
-                className={`flex flex-col items-start rounded-2xl border p-6 text-left transition ${
+                className={`flex flex-col items-start rounded-2xl border p-5 text-left transition ${
                   escolhaLogo === 'nao_tenho'
                     ? 'border-[#EA1D2C] bg-[#EA1D2C]/10 ring-1 ring-[#EA1D2C]'
                     : 'border-white/10 bg-[#181818] hover:border-white/20'
                 }`}
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white">
-                  <Sparkles className="h-5 w-5" />
+                  <Store className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 text-lg font-bold">Ainda não tenho logo</h3>
+                <h3 className="mt-4 text-base font-bold text-white">Ainda não tenho logo</h3>
                 <p className="mt-1 text-xs text-white/60">
-                  Usaremos as cores do seu nicho e você poderá gerar uma logo profissional depois com IA.
+                  Usaremos as cores do seu nicho gastronômico e você poderá criar a logo definitiva depois.
                 </p>
               </button>
             </div>
@@ -1074,6 +1095,20 @@ function CadastroPage() {
             </div>
           </div>
         )}
+
+        {/* Modal Estúdio de Criação de Logo */}
+        <LogoStudioModal
+          open={showLogoStudio}
+          onOpenChange={setShowLogoStudio}
+          defaultStoreName={nome}
+          defaultNiche={categoria}
+          onSelectPalette={(paletteColors) => {
+            setCores(paletteColors);
+            setEscolhaLogo('nao_tenho');
+            setShowLogoStudio(false);
+            toast.success('Paleta de cores aplicada ao seu cadastro!');
+          }}
+        />
       </main>
     </div>
   );

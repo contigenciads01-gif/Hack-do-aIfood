@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useCompany, useSaveCompany } from '@/lib/data/company';
 import { uploadCompanyLogo } from '@/lib/data/storage';
 import { useAuth } from '@/lib/auth';
+import { LogoStudioModal } from '@/components/brand/LogoStudioModal';
 
 export function BrandProfileBar() {
   const { user } = useAuth();
@@ -20,6 +21,7 @@ export function BrandProfileBar() {
   const saveCompanyMutation = useSaveCompany();
 
   const [editOpen, setEditOpen] = useState(false);
+  const [showLogoStudio, setShowLogoStudio] = useState(false);
   const [nome, setNome] = useState('');
   const [slogan, setSlogan] = useState('');
   const [cores, setCores] = useState<string[]>([]);
@@ -171,11 +173,11 @@ export function BrandProfileBar() {
               <label className="text-xs font-semibold uppercase tracking-wider text-white/70">
                 Trocar logo
               </label>
-              <div className="mt-1 flex items-center gap-3">
+              <div className="mt-1 flex flex-wrap items-center gap-2.5">
                 <Button asChild size="sm" variant="outline" className="text-xs border-white/20">
-                  <label>
+                  <label className="cursor-pointer">
                     <Upload className="mr-1.5 h-3.5 w-3.5" />
-                    Enviar nova imagem
+                    Enviar logo (Arquivo)
                     <input
                       type="file"
                       accept="image/*"
@@ -183,6 +185,17 @@ export function BrandProfileBar() {
                       onChange={(e) => handleLogoUpload(e.target.files?.[0])}
                     />
                   </label>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowLogoStudio(true)}
+                  className="text-xs border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 rounded-xl gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Criar logo (Estúdio)
                 </Button>
                 {company.tem_logo && (
                   <Button
@@ -267,6 +280,18 @@ export function BrandProfileBar() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Estúdio de Criação de Logo Modal */}
+      <LogoStudioModal
+        open={showLogoStudio}
+        onOpenChange={setShowLogoStudio}
+        defaultStoreName={company.nome}
+        defaultNiche={company.categoria}
+        onSelectPalette={(paletteColors) => {
+          setCores(paletteColors);
+          toast.success('Paleta de cores aplicada ao formulário!');
+        }}
+      />
     </>
   );
 }

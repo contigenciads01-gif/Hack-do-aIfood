@@ -51,6 +51,7 @@ import { SHOW_CEREBRO_MARCA, TUTORIAL_BLOQUEANTE } from '@/config';
 import { GoldenBookIcon } from '@/components/ui/golden-book-icon';
 import { useTutorialProgress } from '@/lib/tutorial-progress';
 import { LogoHack } from '@/components/brand/LogoHack';
+import { LogoStudioModal } from '@/components/brand/LogoStudioModal';
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -67,6 +68,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showTutorialPopup, setShowTutorialPopup] = useState(false);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [showLogoStudio, setShowLogoStudio] = useState(false);
 
   // Edit Company State for the popup
   const [editNome, setEditNome] = useState('');
@@ -510,11 +512,11 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
               <label className="text-xs font-semibold uppercase tracking-wider text-white/70">
                 Logo da loja
               </label>
-              <div className="mt-1 flex items-center gap-3">
+              <div className="mt-1 flex flex-wrap items-center gap-2.5">
                 <Button asChild size="sm" variant="outline" className="text-xs border-white/20 rounded-xl">
-                  <label>
+                  <label className="cursor-pointer">
                     <Upload className="mr-1.5 h-3.5 w-3.5" />
-                    Enviar nova imagem
+                    Enviar logo (Arquivo)
                     <input
                       type="file"
                       accept="image/*"
@@ -522,6 +524,17 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                       onChange={(e) => handleLogoUpload(e.target.files?.[0])}
                     />
                   </label>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowLogoStudio(true)}
+                  className="text-xs border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 rounded-xl gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Criar logo (Estúdio)
                 </Button>
                 {company?.tem_logo && (
                   <Button
@@ -667,6 +680,21 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ═══════ ESTÚDIO DE CRIAÇÃO DE LOGO ═══════ */}
+      <LogoStudioModal
+        open={showLogoStudio}
+        onOpenChange={setShowLogoStudio}
+        defaultStoreName={company?.nome || editNome}
+        defaultNiche={company?.categoria || 'Hamburgueria'}
+        onSelectPalette={async (colors) => {
+          setEditCores(colors);
+          await saveCompanyMutation.mutateAsync({
+            cores: colors,
+          });
+          toast.success('Paleta de cores aplicada à sua empresa!');
+        }}
+      />
     </div>
   );
 }

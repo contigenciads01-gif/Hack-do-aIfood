@@ -349,7 +349,10 @@ export function AgenteFluxoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-white/15 bg-[#121214] text-white p-0 overflow-hidden sm:max-w-3xl w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col rounded-none sm:rounded-3xl">
+      <DialogContent
+        hideCloseButton
+        className="border-white/15 bg-[#121214] text-white p-0 overflow-hidden sm:max-w-3xl w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col rounded-none sm:rounded-3xl"
+      >
         {/* Top Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 bg-[#161618] shrink-0">
           <div className="flex items-center gap-2.5">

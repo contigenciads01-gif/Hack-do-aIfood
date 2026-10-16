@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import cinematicBg from '@/assets/login-bg-cinematic.webp';
-import { LogoHack } from '@/components/brand/LogoHack';
+import { LogoHackAnimated, type LogoHackAnimatedHandle } from '@/components/brand/LogoHackAnimated';
 import { AmbientLighting } from '@/components/login/AmbientLighting';
 import { PhoneHero } from '@/components/login/PhoneHero';
 import { ServicesSection } from '@/components/login/ServicesSection';
@@ -83,6 +83,7 @@ function LoginPage() {
 
   // Guard against duplicate concurrent submissions (double-clicks / double events)
   const isSubmittingRef = useRef(false);
+  const logoAnimRef = useRef<LogoHackAnimatedHandle>(null);
 
   // Username validation state for registration
   const [usernameCheck, setUsernameCheck] = useState<{
@@ -191,6 +192,12 @@ function LoginPage() {
     try {
       const data = await login(userInput, senha);
       toast.success('Login realizado com sucesso!');
+
+      // Micro-interação oficial: rotação com overshoot 14°, glint e sparkle (750ms)
+      if (logoAnimRef.current) {
+        await logoAnimRef.current.play();
+      }
+
       if (data?.user) {
         await checkExistingCompanyAndRedirect(data.user.id);
       } else {
@@ -346,9 +353,10 @@ function LoginPage() {
         <div className="my-auto flex flex-col lg:grid lg:grid-cols-[380px_minmax(360px,460px)_1fr] lg:gap-10 xl:gap-16 items-center">
           {/* Coluna 1: Esquerda (380px no desktop) */}
           <div className="w-full lg:w-[380px] lg:shrink-0 flex flex-col relative z-20">
-            {/* Logo Original (Vetor SVG puro) */}
+            {/* Logo Original (Vetor SVG puro com Micro-interação disparada no login) */}
             <div className="flex items-center">
-              <LogoHack
+              <LogoHackAnimated
+                ref={logoAnimRef}
                 className="h-14 sm:h-16 w-auto drop-shadow-[0_4px_16px_rgba(234,29,44,0.3)] animate-fade-in-up"
               />
             </div>
