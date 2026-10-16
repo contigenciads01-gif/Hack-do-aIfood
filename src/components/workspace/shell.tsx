@@ -52,6 +52,7 @@ import { GoldenBookIcon } from '@/components/ui/golden-book-icon';
 import { useTutorialProgress } from '@/lib/tutorial-progress';
 import { LogoHack } from '@/components/brand/LogoHack';
 import { LogoStudioModal } from '@/components/brand/LogoStudioModal';
+import { LogoSplash } from '@/components/brand/LogoSplash';
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -695,6 +696,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           toast.success('Paleta de cores aplicada à sua empresa!');
         }}
       />
+
+      {/* ═══════ SPLASH ANIMADO DO LOGO PÓS-LOGIN (UMA VEZ POR SESSÃO) ═══════ */}
+      <LogoSplash />
     </div>
   );
 }
