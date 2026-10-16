@@ -20,6 +20,8 @@ import { BrandProfileBar } from '@/components/workspace/brand-profile-bar';
 import { AgenteFluxoDialog } from '@/components/workspace/agente-fluxo-dialog';
 import { FotoStudio } from '@/components/workspace/foto-studio';
 import { PlusUpgradeModal } from '@/components/workspace/plus-upgrade-modal';
+import { AgenteCard } from '@/components/workspace/agente-card';
+import { FloatingGlassBackground } from '@/components/workspace/floating-glass-background';
 import { useCompany, isCompanyPlus } from '@/lib/data/company';
 import { usePratos, type Prato } from '@/lib/data/pratos';
 import { useMaterials } from '@/lib/data/materials';
@@ -128,12 +130,15 @@ export function AgenteWorkspace({ initialCard }: AgenteWorkspaceProps = {}) {
   const readyPratos = pratos.filter((p) => p.checklist?.isComplete).length;
 
   return (
-    <main className="tool-page max-w-6xl space-y-7 pb-16">
+    <main className="tool-page relative max-w-6xl space-y-7 pb-16">
+      {/* ═══════ 0. FUNDO COM QUADRADOS DE VIDRO FLUTUANDO (MAX 6) ═══════ */}
+      <FloatingGlassBackground />
+
       {/* ═══════ 1. BARRA "PERFIL DA MARCA" NO TOPO ═══════ */}
       <BrandProfileBar />
 
       {/* ═══════ 2. TÍTULO E SUBTÍTULO ═══════ */}
-      <div className="space-y-1">
+      <div className="space-y-1 relative z-10">
         <div className="flex items-center gap-2">
           <span className="text-xs font-black uppercase tracking-wider text-[#EA1D2C] bg-[#EA1D2C]/10 px-2.5 py-0.5 rounded-md border border-[#EA1D2C]/20">
             Workspace único
@@ -148,71 +153,23 @@ export function AgenteWorkspace({ initialCard }: AgenteWorkspaceProps = {}) {
         </p>
       </div>
 
-      {/* ═══════ 3. GRADE DE CARDS GRANDES (2 COLS NO CELULAR, 3 NO DESKTOP) ═══════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
-        {cards.map((card) => {
+      {/* ═══════ 3. GRADE DE CARDS GRANDES COM FÍSICA E CÉREBRO PENSANDO ═══════ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
+        {cards.map((card, idx) => {
           const isLocked = card.isPlus && !isPlus;
-          const Icon = card.icon;
 
           return (
-            <div
+            <AgenteCard
               key={card.id}
-              role="button"
-              tabIndex={0}
+              id={card.id}
+              title={card.title}
+              subtitle={card.subtitle}
+              badge={card.badge}
+              index={idx}
+              isLocked={isLocked}
+              requiredPlanName="Mensal ou Trimestral"
               onClick={() => handleCardClick(card)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleCardClick(card);
-                }
-              }}
-              className={`group relative flex flex-col justify-between p-4 sm:p-5 rounded-3xl border transition-all duration-200 cursor-pointer text-left select-none outline-none focus-visible:ring-2 focus-visible:ring-[#EA1D2C] ${
-                isLocked
-                  ? 'border-white/10 bg-[#141416]/70 hover:border-white/20'
-                  : 'border-white/10 bg-[#161618] hover:border-[#EA1D2C]/50 hover:bg-[#1a1a1d] hover:shadow-xl hover:shadow-[#EA1D2C]/5'
-              }`}
-            >
-              {/* Card Top: Icon & Badge / Lock */}
-              <div className="flex items-start justify-between gap-2 mb-3">
-                {/* Rounded Square Icon (SEM CÍRCULO) */}
-                <div
-                  className={`flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl transition-all ${
-                    isLocked
-                      ? 'bg-white/5 text-zinc-500 border border-white/10'
-                      : 'bg-[#EA1D2C]/15 text-[#EA1D2C] border border-[#EA1D2C]/30 group-hover:bg-[#EA1D2C] group-hover:text-white'
-                  }`}
-                >
-                  <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
-                </div>
-
-                {isLocked ? (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-amber-500/20 px-2 py-1 text-[10px] font-black text-amber-300 border border-amber-500/30">
-                    <Lock className="h-3 w-3" />
-                    PLUS
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider hidden sm:inline">
-                    {card.badge}
-                  </span>
-                )}
-              </div>
-
-              {/* Card Bottom: Title & Subtitle */}
-              <div className="space-y-1.5 mt-auto">
-                <h3 className="font-bold text-sm sm:text-base text-white group-hover:text-[#EA1D2C] transition-colors leading-snug">
-                  {card.title}
-                </h3>
-                <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
-                  {card.subtitle}
-                </p>
-
-                {isLocked && (
-                  <span className="text-[11px] font-bold text-amber-400/90 block pt-1">
-                    Disponível no plano PLUS →
-                  </span>
-                )}
-              </div>
-            </div>
+            />
           );
         })}
       </div>
