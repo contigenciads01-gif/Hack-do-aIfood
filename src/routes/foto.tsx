@@ -1,9 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { FotoStudio } from '@/components/workspace/foto-studio';
-import { pageHead } from '@/data/mock';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/foto')({
-  head: () =>
-    pageHead('Tirar foto do prato', 'Capture até 3 fotos por prato e organize tudo nos seus materiais.'),
-  component: () => <FotoStudio />,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/agente',
+      search: { card: 'fotos_pratos' },
+    });
+  },
+  component: () => null,
 });

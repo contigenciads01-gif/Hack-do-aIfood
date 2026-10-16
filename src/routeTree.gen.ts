@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgenteRouteImport } from './routes/agente'
 import { Route as AnunciosRouteImport } from './routes/anuncios'
 import { Route as AvaliacoesRouteImport } from './routes/avaliacoes'
 import { Route as BrandingRouteImport } from './routes/branding'
@@ -32,6 +33,11 @@ import { Route as AdminAssinaturasRouteImport } from './routes/admin.assinaturas
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgenteRoute = AgenteRouteImport.update({
+  id: '/agente',
+  path: '/agente',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnunciosRoute = AnunciosRouteImport.update({
@@ -127,6 +133,7 @@ const AdminAssinaturasRoute = AdminAssinaturasRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agente': typeof AgenteRoute
   '/anuncios': typeof AnunciosRoute
   '/avaliacoes': typeof AvaliacoesRoute
   '/branding': typeof BrandingRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agente': typeof AgenteRoute
   '/anuncios': typeof AnunciosRoute
   '/avaliacoes': typeof AvaliacoesRoute
   '/branding': typeof BrandingRoute
@@ -170,6 +178,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agente': typeof AgenteRoute
   '/anuncios': typeof AnunciosRoute
   '/avaliacoes': typeof AvaliacoesRoute
   '/branding': typeof BrandingRoute
@@ -193,6 +202,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/agente'
     | '/anuncios'
     | '/avaliacoes'
     | '/branding'
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/agente'
     | '/anuncios'
     | '/avaliacoes'
     | '/branding'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/agente'
     | '/anuncios'
     | '/avaliacoes'
     | '/branding'
@@ -257,6 +269,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgenteRoute: typeof AgenteRoute
   AnunciosRoute: typeof AnunciosRoute
   AvaliacoesRoute: typeof AvaliacoesRoute
   BrandingRoute: typeof BrandingRoute
@@ -284,6 +297,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agente': {
+      id: '/agente'
+      path: '/agente'
+      fullPath: '/agente'
+      preLoaderRoute: typeof AgenteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/anuncios': {
@@ -417,6 +437,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgenteRoute: AgenteRoute,
   AnunciosRoute: AnunciosRoute,
   AvaliacoesRoute: AvaliacoesRoute,
   BrandingRoute: BrandingRoute,

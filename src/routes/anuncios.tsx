@@ -1,15 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { AnunciosPage } from '@/components/workspace/anuncios-page';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/anuncios')({
-  head: () => ({
-    meta: [
-      { title: 'Anúncios (Plus) — Hack do iFood' },
-      {
-        name: 'description',
-        content: 'Crie anúncios profissionais de alta conversão para Instagram Stories e Carrossel.',
-      },
-    ],
-  }),
-  component: AnunciosPage,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/agente',
+      search: { card: 'anuncio_instagram' },
+    });
+  },
+  component: () => null,
 });

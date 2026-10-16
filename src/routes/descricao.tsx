@@ -1,7 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { PromptDashboard } from '@/components/workspace/prompt-dashboard';
-import { pageHead } from '@/data/mock';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+
 export const Route = createFileRoute('/descricao')({
-  head: () => pageHead('Descrição para o iFood', 'Prepare títulos e descrições dos seus pratos.'),
-  component: () => <PromptDashboard toolId="descricao"/>,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/agente',
+      search: { card: 'descricao_ifood' },
+    });
+  },
+  component: () => null,
 });

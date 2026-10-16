@@ -109,10 +109,10 @@ function LoginPage() {
       if (!data || (data.cadastro_passo ?? 1) < 4) {
         navigate({ to: '/cadastro' });
       } else {
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/agente' });
       }
     } catch {
-      navigate({ to: '/dashboard' });
+      navigate({ to: '/agente' });
     }
   };
 
@@ -194,7 +194,7 @@ function LoginPage() {
       if (data?.user) {
         await checkExistingCompanyAndRedirect(data.user.id);
       } else {
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/agente' });
       }
     } catch (err: any) {
       if (isRateLimitError(err)) {

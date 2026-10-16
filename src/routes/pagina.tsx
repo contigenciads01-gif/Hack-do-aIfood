@@ -1,7 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { PromptDashboard } from '@/components/workspace/prompt-dashboard';
-import { pageHead } from '@/data/mock';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+
 export const Route = createFileRoute('/pagina')({
-  head: () => pageHead('Minha página', 'Links e presença digital da sua loja.'),
-  component: () => <PromptDashboard toolId="pagina"/>,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/agente',
+      search: { card: 'minha_pagina' },
+    });
+  },
+  component: () => null,
 });

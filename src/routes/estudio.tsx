@@ -1,7 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { StudioPage } from '@/components/workspace/pages';
-import { pageHead } from '@/data/mock';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+
 export const Route = createFileRoute('/estudio')({
-  head: () => pageHead('Estúdio', 'Ferramentas para preparar seus materiais do iFood.'),
-  component: () => <StudioPage/>,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/agente',
+    });
+  },
+  component: () => null,
 });

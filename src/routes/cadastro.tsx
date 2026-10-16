@@ -1059,9 +1059,9 @@ function CadastroPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 className="flex-1 py-5 text-base sm:text-lg font-bold bg-[#EA1D2C] hover:bg-[#ff3b4b] shadow-xl shadow-[#EA1D2C]/25"
-                onClick={() => navigate({ to: '/dashboard' })}
+                onClick={() => navigate({ to: '/agente' })}
               >
-                Ir para o meu painel
+                Ir para o Agente
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <Button
