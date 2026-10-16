@@ -16,16 +16,29 @@ import {
   HelpCircle,
   UtensilsCrossed,
   Info,
+  Lightbulb,
+  FileText,
+  Layers,
+  BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { AGENTE_FLUXOS, type AgenteFluxo, type AgentePasso } from '@/data/agente-fluxos';
 import { useSpeech, matchKeywordsToOptions } from '@/lib/speech';
 import { usePratos } from '@/lib/data/pratos';
 import { useCompany } from '@/lib/data/company';
 import { useSaveMaterial } from '@/lib/data/materials';
-import { buildMetaprompt } from '@/lib/metaprompt';
+import { buildPromptBlueprint, type PromptBlueprintResult } from '@/data/prompt-blueprint';
+import {
+  getStepHelp,
+  getOptionPreviewPhrase,
+  getFluxoDeliverables,
+  getFluxoReadyExample,
+  calculateBriefingQuality,
+} from '@/data/agente-guias';
+import { AnimatedBrain } from '@/components/brand/AnimatedBrain';
 
 interface AgenteFluxoDialogProps {
   fluxoId: string | null;
@@ -50,10 +63,20 @@ export function AgenteFluxoDialog({
   const [spokenDetails, setSpokenDetails] = useState('');
   const [showVoiceCard, setShowVoiceCard] = useState(true);
   const [isSummaryView, setIsSummaryView] = useState(false);
+
+  // Prompt building states (Etapa 1 + 2)
+  const [isBuildingPrompt, setIsBuildingPrompt] = useState(false);
+  const [buildSuccess, setBuildSuccess] = useState(false);
+  const [blueprintResult, setBlueprintResult] = useState<PromptBlueprintResult | null>(null);
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null);
   const [editedPrompt, setEditedPrompt] = useState<string | null>(null);
   const [isPromptSaved, setIsPromptSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
+
+  // Result Tabs (Etapa 3)
+  const [activeResultTab, setActiveResultTab] = useState<'tudo' | 'sistema' | 'pedido'>('tudo');
+  const [copiedTab, setCopiedTab] = useState<'tudo' | 'sistema' | 'pedido' | null>(null);
+  const [showExplanationModal, setShowExplanationModal] = useState(false);
+  const [hoveredOptionId, setHoveredOptionId] = useState<string | null>(null);
 
   // Web Speech API
   const {
@@ -68,14 +91,28 @@ export function AgenteFluxoDialog({
 
   const draftKey = fluxo ? `hdi_agente_draft_${fluxo.id}` : '';
 
+  // Selected dish helper
+  const selectedDishName =
+    answers['nome_prato'] || answers['prato_ou_tema'] || answers['prato'] || '';
+  const selectedPrato = useMemo(() => {
+    if (!selectedDishName) return pratos[0] || null;
+    return (
+      pratos.find(
+        (p) => p.nome.toLowerCase() === String(selectedDishName).toLowerCase(),
+      ) || null
+    );
+  }, [pratos, selectedDishName]);
+
   // Load draft or initialize when opening
   useEffect(() => {
     if (open && fluxo) {
       setIsSummaryView(false);
       setGeneratedPrompt(null);
       setEditedPrompt(null);
+      setBlueprintResult(null);
       setIsPromptSaved(false);
       setShowVoiceCard(true);
+      setActiveResultTab('tudo');
 
       const savedDraft = draftKey ? localStorage.getItem(draftKey) : null;
       if (savedDraft) {
@@ -130,50 +167,88 @@ export function AgenteFluxoDialog({
   const currentStep: AgentePasso | undefined = fluxo.passos[currentStepIndex];
   const progressPercent = totalSteps > 0 ? Math.round(((currentStepIndex + 1) / totalSteps) * 100) : 100;
 
+  // Answered count for quality
+  const answeredCount = fluxo.passos.filter((p) => {
+    const val = answers[p.variavel];
+    return val !== undefined && val !== null && val !== '';
+  }).length;
+
+  const hasRealPhoto = Boolean(
+    (selectedPrato?.fotos && selectedPrato.fotos.length > 0) ||
+      (selectedPrato?.prato_fotos && selectedPrato.prato_fotos.length > 0),
+  );
+
+  const quality = calculateBriefingQuality(
+    answers,
+    totalSteps,
+    answeredCount,
+    hasRealPhoto,
+    spokenDetails,
+  );
+
+  // Deliverables list for summary view
+  const deliverables = getFluxoDeliverables(fluxo.id);
+
   // Handle voice transcript application
   const applyTranscript = () => {
     if (!transcript.trim()) return;
     const spoken = transcript.trim();
     setSpokenDetails((prev) => (prev ? `${prev}. ${spoken}` : spoken));
 
-    // Match keywords to auto-select options
     const autoMatches = matchKeywordsToOptions(spoken, fluxo.passos);
     if (Object.keys(autoMatches).length > 0) {
       setAnswers((prev) => ({ ...prev, ...autoMatches }));
       toast.success(
-        `Opções correspondentes à sua fala foram pré-selecionadas!`,
-        { duration: 4000 },
+        `${Object.keys(autoMatches).length} opções foram marcadas automaticamente com sua fala!`,
       );
     } else {
-      toast.info('Texto falado adicionado aos detalhes do pedido.');
+      toast.info('Detalhe adicionado ao prompt com sucesso!');
     }
     setTranscript('');
     stopListening();
-    setShowVoiceCard(false);
   };
 
-  // Auto-fill all with "Surpreenda-me"
+  // Load Ready Example ("Ver exemplo pronto")
+  const handleLoadReadyExample = () => {
+    const ready = getFluxoReadyExample(fluxo.id);
+    if (!ready) {
+      toast.info('Exemplo já preparado.');
+      return;
+    }
+
+    setAnswers((prev) => ({
+      ...prev,
+      ...ready.answers,
+    }));
+    if (ready.spokenDetails) {
+      setSpokenDetails(ready.spokenDetails);
+    }
+    setIsSummaryView(true);
+    toast.success(`Exemplo "${ready.tituloExemplo}" carregado! Confira e toque em Gerar prompt.`);
+  };
+
+  // "Surpreenda-me" auto fill
   const handleSurpriseMe = () => {
-    const filled: Record<string, any> = { ...answers };
-    fluxo.passos.forEach((p) => {
-      if (!filled[p.variavel]) {
-        if (p.valorPadrao !== undefined) {
-          filled[p.variavel] = p.valorPadrao;
-        } else if (p.opcoes && p.opcoes[0]) {
-          filled[p.variavel] = p.opcoes[0].valorPrompt || p.opcoes[0].rotulo;
-        } else if (p.tipo === 'prato' && pratos[0]) {
-          filled[p.variavel] = pratos[0].nome;
+    const autoFilled: Record<string, any> = { ...answers };
+    fluxo.passos.forEach((passo) => {
+      if (passo.opcoes && passo.opcoes.length > 0) {
+        const chosen = passo.opcoes[0];
+        if (chosen) {
+          autoFilled[passo.variavel] = chosen.valorPrompt || chosen.rotulo;
         }
+      } else if (passo.tipo === 'prato' && pratos.length > 0) {
+        autoFilled[passo.variavel] = pratos[0]?.nome;
       }
     });
-    setAnswers(filled);
+
+    setAnswers(autoFilled);
     setIsSummaryView(true);
-    toast.success('Opções recomendadas preenchidas automaticamente!');
+    toast.success('Opções recomendadas preenchidas! Confira o resumo antes de gerar.');
   };
 
-  // Reset draft
+  // Restart flow
   const handleRestart = () => {
-    if (confirm('Deseja recomeçar este fluxo do início?')) {
+    if (confirm('Deseja reiniciar todas as respostas deste assistente?')) {
       if (draftKey) localStorage.removeItem(draftKey);
       const defaults: Record<string, any> = {};
       fluxo.passos.forEach((p) => {
@@ -190,6 +265,7 @@ export function AgenteFluxoDialog({
       setCurrentStepIndex(0);
       setIsSummaryView(false);
       setGeneratedPrompt(null);
+      setBlueprintResult(null);
     }
   };
 
@@ -219,7 +295,7 @@ export function AgenteFluxoDialog({
     }
   };
 
-  // Generate prompt
+  // Generate prompt with 900ms build delay and AnimatedBrain
   const handleGeneratePrompt = () => {
     // Validate required fields
     const missing = fluxo.passos.filter(
@@ -237,45 +313,32 @@ export function AgenteFluxoDialog({
       return;
     }
 
-    const payload: Record<string, any> = {
-      ...answers,
-    };
+    // Start 900ms building animation
+    setIsBuildingPrompt(true);
 
-    if (spokenDetails.trim()) {
-      payload['detalhes_falados'] = spokenDetails.trim();
-    }
+    setTimeout(() => {
+      const blueprint = buildPromptBlueprint({
+        toolId: fluxo.id,
+        company: company || {},
+        answers,
+        prato: selectedPrato,
+        spokenDetails,
+      });
 
-    // Company profile fallback values
-    const companyPayload: Record<string, any> = {
-      nome_loja: company?.nome || 'Minha Loja',
-      categoria: company?.categoria || 'Restaurante e Delivery',
-      cidade: company?.cidade || '',
-      whatsapp: company?.whatsapp || '',
-      instagram: company?.instagram || '',
-      horario: company?.horario || '',
-      slogan: company?.slogan || '',
-      personalidade: company?.personalidade || 'Acolhedora e profissional',
-      tom: answers['tom'] || company?.tom || 'Apetitoso e direto',
-      publico: company?.publico?.join(', ') || 'Clientes locais apaixonados por boa comida',
-      diferenciais: company?.diferenciais?.join(', ') || 'Ingredientes selecionados e feitos na hora',
-      cores_marca: company?.cores?.join(', ') || '#EA1D2C',
-    };
+      setBlueprintResult(blueprint);
+      setGeneratedPrompt(blueprint.completo);
+      setEditedPrompt(blueprint.completo);
+      setIsBuildingPrompt(false);
+      setBuildSuccess(true);
+      setIsSummaryView(false);
 
-    // If step was numeric promo
-    if (answers['preco_atual'] && typeof answers['preco_atual'] === 'object') {
-      payload['preco_atual'] = answers['preco_atual'].preco || '39.90';
-      payload['custo'] = answers['preco_atual'].custo || '15.00';
-      payload['comissao'] = answers['preco_atual'].comissao || '23';
-    }
+      if (draftKey) localStorage.removeItem(draftKey);
+      toast.success('Prompt pronto com sucesso!');
 
-    const result = buildMetaprompt(fluxo.toolId, payload, companyPayload);
-    setGeneratedPrompt(result.text);
-    setEditedPrompt(result.text);
-    setIsSummaryView(false);
-
-    // Clean draft now that it's finalized
-    if (draftKey) localStorage.removeItem(draftKey);
-    toast.success('Prompt pronto com sucesso!');
+      setTimeout(() => {
+        setBuildSuccess(false);
+      }, 2200);
+    }, 900);
   };
 
   // Save to materials
@@ -284,39 +347,48 @@ export function AgenteFluxoDialog({
     if (!textToSave) return;
 
     try {
-      const selectedDishName =
-        answers['nome_prato'] || answers['prato_ou_tema'] || answers['prato'];
-      const matchedDish = pratos.find(
-        (p) => p.nome.toLowerCase() === String(selectedDishName || '').toLowerCase(),
-      );
-
       await saveMaterialMutation.mutateAsync({
-        title: `${fluxo.titulo} — ${selectedDishName || company?.nome || 'Loja'}`,
+        title: `${fluxo.titulo} — ${selectedDishName || (company && company.nome) || 'Loja'}`,
         text: textToSave,
         template: fluxo.toolId,
         tool: fluxo.id,
         tipo: 'prompt',
-        prato_id: matchedDish?.id || null,
+        prato_id: selectedPrato?.id || null,
         original: null,
         summary: [],
       });
 
       setIsPromptSaved(true);
       toast.success('Prompt salvo com sucesso na pasta do prato em "Meus materiais"!');
-    } catch (e: any) {
+    } catch {
       toast.error('Não foi possível salvar em materiais.');
     }
   };
 
-  // Copy to clipboard
-  const handleCopyPrompt = async () => {
-    const text = editedPrompt || generatedPrompt;
-    if (!text) return;
+  // Copy to clipboard per active tab
+  const handleCopyTab = async (tab: 'tudo' | 'sistema' | 'pedido') => {
+    let textToCopy = '';
+    if (tab === 'tudo') {
+      textToCopy = editedPrompt || generatedPrompt || '';
+    } else if (tab === 'sistema') {
+      textToCopy = blueprintResult?.sistema || '';
+    } else if (tab === 'pedido') {
+      textToCopy = `${blueprintResult?.pedido || ''}\n\n${blueprintResult?.entregavel || ''}`.trim();
+    }
+
+    if (!textToCopy) return;
+
     try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      toast.success('Prompt copiado! Abra o ChatGPT e cole com Ctrl+V.');
-      setTimeout(() => setCopied(false), 3000);
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedTab(tab);
+      const label =
+        tab === 'sistema'
+          ? 'Instruções de Sistema copiadas!'
+          : tab === 'pedido'
+            ? 'Pedido da Tarefa copiado!'
+            : 'Prompt completo copiado!';
+      toast.success(`${label} Cole no ChatGPT com Ctrl+V.`);
+      setTimeout(() => setCopiedTab(null), 3000);
     } catch {
       toast.error('Erro ao copiar.');
     }
@@ -324,13 +396,7 @@ export function AgenteFluxoDialog({
 
   // Download photo if available
   const handleDownloadPhotos = () => {
-    const selectedDishName =
-      answers['nome_prato'] || answers['prato_ou_tema'] || answers['prato'];
-    const matchedDish = pratos.find(
-      (p) => p.nome.toLowerCase() === String(selectedDishName || '').toLowerCase(),
-    );
-
-    const photos = matchedDish?.fotos || matchedDish?.prato_fotos || [];
+    const photos = selectedPrato?.fotos || selectedPrato?.prato_fotos || [];
     if (photos.length === 0) {
       toast.info('Esse prato ainda não tem fotos salvas. Você pode tirar fotos no Agente.');
       return;
@@ -340,20 +406,37 @@ export function AgenteFluxoDialog({
     if (photoUrl) {
       const a = document.createElement('a');
       a.href = photoUrl;
-      a.download = `${matchedDish?.nome || 'prato'}-foto-1.jpg`;
+      a.download = `${selectedPrato?.nome || 'prato'}-foto-1.jpg`;
       a.target = '_blank';
       a.click();
       toast.success('Baixando foto de referência para você anexar no ChatGPT!');
     }
   };
 
+  // Current step help guide
+  const currentHelp = currentStep ? getStepHelp(fluxo.id, currentStep.id) : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         hideCloseButton
-        className="border-white/15 bg-[#121214] text-white p-0 overflow-hidden sm:max-w-3xl w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col rounded-none sm:rounded-3xl"
+        className="border-white/15 bg-[#121214] text-white p-0 overflow-hidden sm:max-w-3xl w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col rounded-none sm:rounded-3xl relative"
       >
-        {/* Top Header */}
+        {/* ═══════ 900MS PROMPT BUILDING OVERLAY WITH ANIMATED BRAIN ═══════ */}
+        {isBuildingPrompt && (
+          <div className="absolute inset-0 z-50 bg-[#0f0f11]/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
+            <AnimatedBrain size={64} isHovered={true} className="mb-4" />
+            <h3 className="text-xl font-black text-white tracking-wide">
+              Montando seu prompt...
+            </h3>
+            <p className="text-xs text-zinc-400 max-w-sm mt-1 leading-relaxed">
+              Combinando o perfil da sua loja, regras inegociáveis de conversão e formato rigoroso de
+              entrega.
+            </p>
+          </div>
+        )}
+
+        {/* ═══════ TOP HEADER ═══════ */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 bg-[#161618] shrink-0">
           <div className="flex items-center gap-2.5">
             <Button
@@ -376,6 +459,12 @@ export function AgenteFluxoDialog({
                     PLUS
                   </span>
                 )}
+                {buildSuccess && (
+                  <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black text-emerald-400 border border-emerald-500/30 flex items-center gap-1 animate-in zoom-in-95">
+                    <Check className="h-3 w-3" />
+                    Prompt montado!
+                  </span>
+                )}
               </div>
               <h2 className="text-sm font-bold text-white truncate max-w-[240px] sm:max-w-md">
                 {generatedPrompt
@@ -389,17 +478,31 @@ export function AgenteFluxoDialog({
 
           <div className="flex items-center gap-2">
             {!generatedPrompt && !isSummaryView && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleSurpriseMe}
-                className="hidden sm:flex h-8 text-xs font-semibold rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 gap-1.5"
-                title="Preenche as opções recomendadas automaticamente"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Surpreenda-me
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLoadReadyExample}
+                  className="hidden md:flex h-8 text-xs font-semibold rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 gap-1.5 border border-white/10"
+                  title="Carrega um caso real de sucesso pronto para ver como funciona"
+                >
+                  <Lightbulb className="h-3.5 w-3.5 text-amber-400" />
+                  Ver exemplo pronto
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSurpriseMe}
+                  className="hidden sm:flex h-8 text-xs font-semibold rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 gap-1.5"
+                  title="Preenche as opções recomendadas automaticamente"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Surpreenda-me
+                </Button>
+              </>
             )}
 
             {!generatedPrompt && (
@@ -428,44 +531,167 @@ export function AgenteFluxoDialog({
           </div>
         </div>
 
-        {/* Progress Bar (when answering steps) */}
-        {!generatedPrompt && !isSummaryView && (
-          <div className="w-full bg-white/5 h-1.5">
-            <div
-              className="bg-[#EA1D2C] h-1.5 transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
+        {/* ═══════ MEDIDOR DE QUALIDADE DO BRIEFING (5 BARRAS) ═══════ */}
+        {!generatedPrompt && (
+          <div className="border-b border-white/10 bg-[#141416] px-5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-zinc-400">Qualidade do briefing:</span>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((seg) => (
+                  <div
+                    key={seg}
+                    className={`h-2 w-5 sm:w-6 rounded-xs transition-all duration-300 ${
+                      seg <= quality.score
+                        ? quality.score >= 5
+                          ? 'bg-emerald-400 shadow-xs shadow-emerald-400/50'
+                          : quality.score >= 3
+                            ? 'bg-[#EA1D2C]'
+                            : 'bg-amber-400'
+                        : 'bg-white/10'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span
+                className={`font-black text-[11px] uppercase tracking-wider ${
+                  quality.score >= 5
+                    ? 'text-emerald-400'
+                    : quality.score >= 3
+                      ? 'text-white'
+                      : 'text-amber-400'
+                }`}
+              >
+                {quality.label}
+              </span>
+            </div>
+
+            <span className="text-[11px] text-zinc-400 truncate max-w-md">
+              <strong className="text-zinc-300">Falta:</strong> {quality.advice}
+            </span>
           </div>
         )}
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
-          {/* ═══════ RESULT VIEW: PROMPT PRONTO ═══════ */}
-          {generatedPrompt ? (
+          {/* ═══════ RESULT VIEW: PROMPT PRONTO EM 3 ABAS ═══════ */}
+          {generatedPrompt && blueprintResult ? (
             <div className="space-y-6 animate-in fade-in duration-300">
               {/* Ready Header */}
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 flex items-start gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white font-bold">
-                  <Check className="h-6 w-6" />
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 flex items-start justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white font-bold">
+                    <Check className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-black text-white">
+                      Seu prompt foi montado com sucesso!
+                    </h3>
+                    <p className="text-xs text-white/70 leading-relaxed">
+                      Dividimos o prompt em partes limpas para você obter o melhor resultado no
+                      ChatGPT.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <h3 className="text-base font-black text-white">
-                    Seu prompt foi montado com sucesso!
-                  </h3>
-                  <p className="text-xs text-white/70 leading-relaxed">
-                    Copie o prompt abaixo e cole no ChatGPT para receber as criações profissionais
-                    com a identidade e as regras de fidelidade da sua loja.
-                  </p>
-                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowExplanationModal(true)}
+                  className="rounded-xl border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 text-xs font-bold gap-1 shrink-0"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  O que é isso?
+                </Button>
               </div>
 
-              {/* Editable Text Area */}
+              {/* 3 Tabs Selection */}
+              <div className="flex rounded-2xl border border-white/10 bg-[#161618] p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveResultTab('sistema')}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                    activeResultTab === 'sistema'
+                      ? 'bg-[#EA1D2C] text-white shadow-md'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  1. Instruções (cole uma vez)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveResultTab('pedido')}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                    activeResultTab === 'pedido'
+                      ? 'bg-[#EA1D2C] text-white shadow-md'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  2. Pedido (cole a cada tarefa)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveResultTab('tudo')}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                    activeResultTab === 'tudo'
+                      ? 'bg-[#EA1D2C] text-white shadow-md'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Tudo junto
+                </button>
+              </div>
+
+              {/* Tab Explanation Banner */}
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-zinc-300 flex items-center justify-between gap-3">
+                <span>
+                  {activeResultTab === 'sistema' && (
+                    <>
+                      💡 <strong>Dica de ouro:</strong> Salve este bloco no{' '}
+                      <em>Custom Instructions</em> do ChatGPT. Você só precisa colar isso uma vez na
+                      vida!
+                    </>
+                  )}
+                  {activeResultTab === 'pedido' && (
+                    <>
+                      🎯 <strong>Apenas a tarefa de hoje:</strong> Cole este bloco a cada novo
+                      anúncio ou prato que quiser produzir.
+                    </>
+                  )}
+                  {activeResultTab === 'tudo' && (
+                    <>
+                      📦 <strong>Prompt Completo Tradicional:</strong> Contém instruções, regras da
+                      marca e pedido estruturado para colar direto.
+                    </>
+                  )}
+                </span>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleCopyTab(activeResultTab)}
+                  className="rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs h-8 px-3 shrink-0 gap-1.5"
+                >
+                  {copiedTab === activeResultTab ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                  {copiedTab === activeResultTab ? 'Copiado!' : 'Copiar esta aba'}
+                </Button>
+              </div>
+
+              {/* Active Tab Text Box */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold uppercase tracking-wider text-zinc-400">
-                    Texto do Prompt
+                    {activeResultTab === 'sistema'
+                      ? 'Bloco 1: Instruções de Sistema e Regras da Marca'
+                      : activeResultTab === 'pedido'
+                        ? 'Bloco 2: Pedido da Tarefa e Entregável Esperado'
+                        : 'Prompt Completo (XML Estruturado)'}
                   </span>
-                  {editedPrompt !== generatedPrompt && (
+                  {activeResultTab === 'tudo' && editedPrompt !== generatedPrompt && (
                     <button
                       type="button"
                       onClick={() => setEditedPrompt(generatedPrompt)}
@@ -475,10 +701,20 @@ export function AgenteFluxoDialog({
                     </button>
                   )}
                 </div>
+
                 <textarea
-                  value={editedPrompt || ''}
-                  onChange={(e) => setEditedPrompt(e.target.value)}
-                  rows={8}
+                  readOnly={activeResultTab !== 'tudo'}
+                  value={
+                    activeResultTab === 'sistema'
+                      ? blueprintResult.sistema
+                      : activeResultTab === 'pedido'
+                        ? `${blueprintResult.pedido}\n\n${blueprintResult.entregavel}`
+                        : editedPrompt || generatedPrompt || ''
+                  }
+                  onChange={(e) => {
+                    if (activeResultTab === 'tudo') setEditedPrompt(e.target.value);
+                  }}
+                  rows={9}
                   className="w-full rounded-2xl border border-white/15 bg-black/60 p-4 text-xs font-mono text-zinc-200 focus:border-[#EA1D2C] focus:outline-hidden leading-relaxed resize-y"
                 />
               </div>
@@ -490,14 +726,18 @@ export function AgenteFluxoDialog({
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Step 1: Copy */}
+                  {/* Step 1: Copy Tab */}
                   <Button
                     type="button"
-                    onClick={handleCopyPrompt}
+                    onClick={() => handleCopyTab(activeResultTab)}
                     className="h-14 rounded-2xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-white text-xs font-bold gap-2 justify-center shadow-lg shadow-[#EA1D2C]/20"
                   >
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {copied ? 'Copiado!' : '1. Copiar prompt'}
+                    {copiedTab === activeResultTab ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                    {copiedTab === activeResultTab ? 'Copiado!' : '1. Copiar prompt'}
                   </Button>
 
                   {/* Step 2: Photos */}
@@ -623,6 +863,21 @@ export function AgenteFluxoDialog({
                 )}
               </div>
 
+              {/* ═══════ "O QUE VOCÊ VAI RECEBER" CARD (ETAPA 3) ═══════ */}
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#161618] to-black/60 p-5 space-y-3">
+                <span className="text-[11px] font-black uppercase tracking-wider text-[#EA1D2C]">
+                  O que você vai receber:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {deliverables.map((item, i) => (
+                    <div key={i} className="flex items-start gap-2 text-zinc-300">
+                      <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Generate Button */}
               <div className="pt-2">
                 <Button
@@ -638,7 +893,7 @@ export function AgenteFluxoDialog({
           ) : (
             /* ═══════ STEP BY STEP QUESTION VIEW ═══════ */
             <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Optional Voice Card: "Prefere falar?" at top of first step or when triggered */}
+              {/* Optional Voice Card: "Prefere falar?" */}
               {showVoiceCard && (
                 <div className="rounded-2xl border border-white/15 bg-gradient-to-r from-black/80 to-[#18181a] p-4 sm:p-5 relative overflow-hidden space-y-3">
                   <div className="flex items-start justify-between">
@@ -719,19 +974,61 @@ export function AgenteFluxoDialog({
                   {speechError && (
                     <p className="text-xs text-rose-400 font-medium">{speechError}</p>
                   )}
-
-                  <p className="text-[10px] text-zinc-500 leading-tight">
-                    Aviso: O reconhecimento de voz é feito pelo navegador e pode usar serviços do
-                    fabricante.
-                  </p>
                 </div>
               )}
 
-              {/* Step Question Header */}
+              {/* Step Question Header with Help (?) Popover */}
               <div className="space-y-1">
-                <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400">
-                  Passo {currentStepIndex + 1} de {totalSteps}
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400">
+                    Passo {currentStepIndex + 1} de {totalSteps}
+                  </span>
+
+                  {/* HELP (?) POPOVER (ETAPA 3) */}
+                  {currentHelp && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 rounded-lg border border-amber-500/20 transition-colors"
+                        >
+                          <HelpCircle className="h-3.5 w-3.5" />
+                          <span>Dica da pergunta</span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="end"
+                        className="w-80 p-4 rounded-2xl bg-[#161618] border border-white/15 text-white space-y-3 shadow-2xl z-50"
+                      >
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                            Para que serve isso?
+                          </span>
+                          <p className="text-xs text-zinc-300 leading-relaxed">
+                            {currentHelp.paraQue}
+                          </p>
+                        </div>
+                        <div className="space-y-1 border-t border-white/10 pt-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                            Exemplo bom:
+                          </span>
+                          <p className="text-xs text-zinc-300 leading-relaxed">
+                            {currentHelp.exemploBom}
+                          </p>
+                        </div>
+                        <div className="space-y-1 border-t border-white/10 pt-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">
+                            Evite:
+                          </span>
+                          <p className="text-xs text-zinc-300 leading-relaxed">
+                            {currentHelp.evite}
+                          </p>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+
                 <h3 className="text-xl font-black text-white">{currentStep?.pergunta}</h3>
                 {currentStep?.subtitulo && (
                   <p className="text-xs text-zinc-400 leading-relaxed">
@@ -750,7 +1047,6 @@ export function AgenteFluxoDialog({
               {currentStep?.tipo === 'prato' ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* "Divulgar a loja toda" choice if applicable */}
                     {fluxo.id === 'anuncio_instagram' && (
                       <button
                         type="button"
@@ -782,7 +1078,6 @@ export function AgenteFluxoDialog({
                       </button>
                     )}
 
-                    {/* Real dishes from database/local */}
                     {pratos.map((p) => {
                       const isSelected = answers[currentStep.variavel] === p.nome;
                       const photoCount = (p.fotos || p.prato_fotos || []).length;
@@ -825,7 +1120,7 @@ export function AgenteFluxoDialog({
                   {pratos.length === 0 && (
                     <div className="rounded-2xl border border-white/10 bg-black/40 p-5 text-center space-y-3">
                       <p className="text-xs text-zinc-400">
-                        Nenhum prato cadastrado ainda. Cadastre um nome rápido:
+                        Nenhum prato cadastrado ainda. Digite o nome do prato:
                       </p>
                       <input
                         type="text"
@@ -843,7 +1138,6 @@ export function AgenteFluxoDialog({
                   )}
                 </div>
               ) : currentStep?.tipo === 'estrelas' ? (
-                /* Star ratings in large rectangular buttons */
                 <div className="grid grid-cols-5 gap-2 sm:gap-3">
                   {['1', '2', '3', '4', '5'].map((starVal) => {
                     const isSelected = String(answers[currentStep.variavel]) === starVal;
@@ -876,7 +1170,6 @@ export function AgenteFluxoDialog({
                   })}
                 </div>
               ) : currentStep?.tipo === 'fala' ? (
-                /* Text with Voice / Clipboard Paste Support */
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-zinc-400 font-medium">
@@ -894,10 +1187,10 @@ export function AgenteFluxoDialog({
                               ...prev,
                               [currentStep.variavel]: text,
                             }));
-                            toast.success('Texto colado da área de transferência!');
+                            toast.success('Texto colado!');
                           }
                         } catch {
-                          toast.error('Permissão de colar negada.');
+                          toast.error('Permissão negada.');
                         }
                       }}
                       className="h-8 text-xs rounded-xl border-white/20 text-white"
@@ -937,7 +1230,6 @@ export function AgenteFluxoDialog({
                   </div>
                 </div>
               ) : currentStep?.tipo === 'passos_numericos' ? (
-                /* Numeric calculations */
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-4 rounded-2xl border border-white/10 bg-white/5 space-y-2">
                     <label className="text-xs font-semibold text-zinc-300 block">
@@ -1002,7 +1294,7 @@ export function AgenteFluxoDialog({
                   </div>
                 </div>
               ) : (
-                /* Choice options (single or multiple) */
+                /* Choice options (single or multiple) with HOVER PREVIEW PHRASE */
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {currentStep?.opcoes?.map((opt) => {
                     const isSelected =
@@ -1012,10 +1304,14 @@ export function AgenteFluxoDialog({
                         : (answers[currentStep.variavel] === opt.valorPrompt ||
                            answers[currentStep.variavel] === opt.rotulo);
 
+                    const previewPhrase = getOptionPreviewPhrase(opt.id);
+
                     return (
                       <button
                         key={opt.id}
                         type="button"
+                        onMouseEnter={() => setHoveredOptionId(opt.id)}
+                        onMouseLeave={() => setHoveredOptionId(null)}
                         onClick={() => {
                           if (currentStep.tipo === 'multipla') {
                             const currentList = Array.isArray(answers[currentStep.variavel])
@@ -1036,32 +1332,45 @@ export function AgenteFluxoDialog({
                             }));
                           }
                         }}
-                        className={`min-h-[72px] p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 ${
+                        className={`min-h-[72px] p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-2 ${
                           isSelected
-                            ? 'border-[#EA1D2C] bg-[#EA1D2C]/10 text-white'
+                            ? 'border-[#EA1D2C] bg-[#EA1D2C]/10 text-white shadow-md'
                             : 'border-white/10 bg-white/5 text-zinc-300 hover:border-white/20 hover:text-white'
                         }`}
                       >
-                        <div className="space-y-1 min-w-0 pr-2">
-                          <span className="text-sm font-bold block text-white leading-snug">
-                            {opt.rotulo}
-                          </span>
-                          {opt.descricao && (
-                            <span className="text-xs text-zinc-400 block leading-tight">
-                              {opt.descricao}
+                        <div className="flex items-start justify-between gap-3 w-full">
+                          <div className="space-y-1 min-w-0 pr-2">
+                            <span className="text-sm font-bold block text-white leading-snug">
+                              {opt.rotulo}
                             </span>
-                          )}
+                            {opt.descricao && (
+                              <span className="text-xs text-zinc-400 block leading-tight">
+                                {opt.descricao}
+                              </span>
+                            )}
+                          </div>
+
+                          <span
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border transition-all ${
+                              isSelected
+                                ? 'bg-[#EA1D2C] border-[#EA1D2C] text-white'
+                                : 'border-white/20 bg-transparent text-transparent'
+                            }`}
+                          >
+                            <Check className="h-4 w-4" />
+                          </span>
                         </div>
 
-                        <span
-                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border transition-all ${
-                            isSelected
-                              ? 'bg-[#EA1D2C] border-[#EA1D2C] text-white'
-                              : 'border-white/20 bg-transparent text-transparent'
-                          }`}
-                        >
-                          <Check className="h-4 w-4" />
-                        </span>
+                        {/* HOVER / TOUCH PHRASE PREVIEW (ETAPA 3) */}
+                        {previewPhrase && (
+                          <div
+                            className={`pt-1 text-[11px] text-amber-300/90 italic transition-opacity ${
+                              hoveredOptionId === opt.id || isSelected ? 'opacity-100' : 'opacity-70'
+                            }`}
+                          >
+                            {previewPhrase}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -1071,7 +1380,7 @@ export function AgenteFluxoDialog({
           )}
         </div>
 
-        {/* Bottom Actions Bar (Single Primary Button & Nav) */}
+        {/* ═══════ BOTTOM ACTIONS BAR ═══════ */}
         {!generatedPrompt && (
           <div className="border-t border-white/10 p-4 bg-[#161618] flex items-center justify-between gap-3 shrink-0">
             <Button
@@ -1114,6 +1423,55 @@ export function AgenteFluxoDialog({
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══════ "O QUE É ISSO?" EXPLANATION MODAL (ETAPA 3) ═══════ */}
+        {showExplanationModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-[#18181b] border border-white/15 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-[#EA1D2C]">
+                  Arquitetura de Prompt
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowExplanationModal(false)}
+                  className="text-zinc-400 hover:text-white p-1"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <h3 className="text-lg font-black text-white">
+                Por que dividir o prompt melhora a IA em 10x?
+              </h3>
+
+              <div className="space-y-3 text-xs text-zinc-300 leading-relaxed">
+                <p>
+                  <strong>1. Instruções de Sistema (Cole uma vez):</strong> Defina a identidade,
+                  cores e regras da sua marca direto no <em>Custom Instructions</em> do ChatGPT. A
+                  IA nunca mais esquece quem você é.
+                </p>
+                <p>
+                  <strong>2. Pedido da Tarefa (Cole a cada prato):</strong> Cada vez que for postar,
+                  você só cola o pedido específico com os ingredientes do dia. Isso economiza tempo
+                  e evita repetições desnecessárias.
+                </p>
+                <p>
+                  <strong>3. Respostas 100% fiéis e sem enrolação:</strong> A IA foca diretamente no
+                  entregável que você precisa, sem alucinar ingredientes e sem usar clichês batidos.
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                onClick={() => setShowExplanationModal(false)}
+                className="w-full h-11 rounded-xl bg-[#EA1D2C] text-white text-xs font-bold hover:bg-[#ff3b4b]"
+              >
+                Entendi, voltar ao prompt
+              </Button>
             </div>
           </div>
         )}
