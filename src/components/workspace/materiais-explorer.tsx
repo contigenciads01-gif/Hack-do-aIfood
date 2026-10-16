@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Folder,
@@ -58,6 +58,7 @@ import {
   useRenamePrato,
   useDeletePrato,
   useDeletePratoFoto,
+  useUpdatePratoDetails,
   validatePratoNome,
   safeTrim,
   type Prato,
@@ -103,13 +104,63 @@ export function MateriaisExplorer({
   const [pratoToRename, setPratoToRename] = useState<Prato | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
+  const deleteOpen_unused = false;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pratoToDelete, setPratoToDelete] = useState<Prato | null>(null);
+
+  // Detalhes do Prato Edit State
+  const updateDetailsMutation = useUpdatePratoDetails();
+  const [detalhesNome, setDetalhesNome] = useState('');
+  const [detalhesPreco, setDetalhesPreco] = useState('');
+  const [detalhesDestaque, setDetalhesDestaque] = useState('');
+  const [detalhesIngredientes, setDetalhesIngredientes] = useState<string[]>([]);
+  const [novoIngrediente, setNovoIngrediente] = useState('');
+  const [salvandoDetalhes, setSalvandoDetalhes] = useState(false);
 
   const selectedPrato = useMemo(() => {
     if (currentFolder === 'raiz' || currentFolder === 'minha-marca') return null;
     return pratos.find((p) => p.id === currentFolder) || null;
   }, [currentFolder, pratos]);
+
+  useEffect(() => {
+    if (selectedPrato) {
+      setDetalhesNome(selectedPrato.nome || '');
+      setDetalhesPreco(
+        selectedPrato.preco !== undefined && selectedPrato.preco !== null
+          ? String(selectedPrato.preco)
+          : '',
+      );
+      setDetalhesDestaque(selectedPrato.destaque || '');
+      setDetalhesIngredientes(selectedPrato.ingredientes || []);
+    }
+  }, [selectedPrato?.id, selectedPrato?.nome, selectedPrato?.preco, selectedPrato?.destaque, selectedPrato?.ingredientes]);
+
+  const handleSalvarDetalhes = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPrato) return;
+    const cleanNome = safeTrim(detalhesNome);
+    if (!cleanNome) {
+      toast.error('O nome do prato não pode ficar vazio.');
+      return;
+    }
+    const numPreco = detalhesPreco.trim() ? parseFloat(detalhesPreco.replace(',', '.')) : null;
+
+    setSalvandoDetalhes(true);
+    try {
+      await updateDetailsMutation.mutateAsync({
+        id: selectedPrato.id,
+        nome: cleanNome,
+        preco: numPreco,
+        destaque: detalhesDestaque.trim() || null,
+        ingredientes: detalhesIngredientes,
+      });
+      toast.success('Detalhes do prato atualizados com sucesso!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar detalhes.');
+    } finally {
+      setSalvandoDetalhes(false);
+    }
+  };
 
   const selectedPratoMaterials = useMemo(() => {
     if (!selectedPrato) return [];
@@ -691,6 +742,244 @@ export function MateriaisExplorer({
                 </Button>
               </div>
             </div>
+
+            {/* ─── SEÇÃO: DETALHES DO PRATO ─── */}
+            {(() => {
+              const cat = (company?.categoria || '').toLowerCase();
+              let sugestoes = [
+                'Molho especial',
+                'Queijo derretido',
+                'Bacon crocante',
+                'Salada fresca',
+                'Tempero especial',
+                'Ervas finas',
+              ];
+              if (cat.includes('hamb') || cat.includes('burger')) {
+                sugestoes = [
+                  'Blend 160g',
+                  'Queijo cheddar',
+                  'Bacon crocante',
+                  'Cebola caramelizada',
+                  'Pão brioche',
+                  'Maionese da casa',
+                  'Picles',
+                ];
+              } else if (cat.includes('pizz')) {
+                sugestoes = [
+                  'Molho de tomate rústico',
+                  'Mussarela',
+                  'Calabresa fatiada',
+                  'Catupiry',
+                  'Manjericão fresco',
+                  'Parmesão',
+                ];
+              } else if (cat.includes('açaí') || cat.includes('acai') || cat.includes('sorvet')) {
+                sugestoes = [
+                  'Açaí puro batido',
+                  'Granola crocante',
+                  'Banana fatiada',
+                  'Morango',
+                  'Leite condensado',
+                  'Leite em pó',
+                ];
+              } else if (cat.includes('jap') || cat.includes('sush')) {
+                sugestoes = [
+                  'Salmão fresco',
+                  'Cream cheese',
+                  'Cebolinha',
+                  'Arroz japonês',
+                  'Alga nori',
+                  'Tarê artesanal',
+                ];
+              }
+
+              const destaquesOpcoes = [
+                'Nenhum',
+                'Mais vendido ⭐',
+                'Novidade 🔥',
+                'Combo do dia 🎁',
+                'Recomendação do Chef 👨‍🍳',
+                'Especial de hoje ✨',
+              ];
+
+              return (
+                <form
+                  onSubmit={handleSalvarDetalhes}
+                  className="rounded-2xl border border-white/10 bg-[#141414] p-5 space-y-5 shadow-sm"
+                >
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-[#EA1D2C]" />
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                        Detalhes do prato
+                      </h3>
+                    </div>
+                    <span className="text-[11px] text-zinc-400">
+                      O Agente usará estes dados automaticamente nos anúncios e cardápios
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Nome do Prato */}
+                    <div className="sm:col-span-1">
+                      <label className="text-xs font-bold text-white/70 uppercase tracking-wider block mb-1.5">
+                        Nome do prato *
+                      </label>
+                      <input
+                        type="text"
+                        value={detalhesNome}
+                        onChange={(e) => setDetalhesNome(e.target.value)}
+                        className="w-full rounded-xl border border-white/15 bg-black/50 p-2.5 text-sm text-white focus:border-[#EA1D2C] focus:outline-hidden"
+                      />
+                    </div>
+
+                    {/* Preço (R$) */}
+                    <div className="sm:col-span-1">
+                      <label className="text-xs font-bold text-white/70 uppercase tracking-wider block mb-1.5">
+                        Preço de venda (R$)
+                      </label>
+                      <input
+                        type="text"
+                        value={detalhesPreco}
+                        onChange={(e) => setDetalhesPreco(e.target.value)}
+                        placeholder="Ex: 34.90"
+                        className="w-full rounded-xl border border-white/15 bg-black/50 p-2.5 text-sm text-white focus:border-[#EA1D2C] focus:outline-hidden"
+                      />
+                    </div>
+
+                    {/* Destaque */}
+                    <div className="sm:col-span-1">
+                      <label className="text-xs font-bold text-white/70 uppercase tracking-wider block mb-1.5">
+                        Destaque no cardápio
+                      </label>
+                      <select
+                        value={detalhesDestaque || 'Nenhum'}
+                        onChange={(e) =>
+                          setDetalhesDestaque(e.target.value === 'Nenhum' ? '' : e.target.value)
+                        }
+                        className="w-full rounded-xl border border-white/15 bg-black/50 p-2.5 text-sm text-white focus:border-[#EA1D2C] focus:outline-hidden cursor-pointer"
+                      >
+                        {destaquesOpcoes.map((op) => (
+                          <option key={op} value={op} className="bg-[#181818] text-white">
+                            {op}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Ingredientes */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/70 uppercase tracking-wider block">
+                      Ingredientes principais
+                    </label>
+
+                    {/* Active ingredients */}
+                    <div className="flex flex-wrap gap-2 min-h-[36px] p-2.5 rounded-xl border border-white/10 bg-black/40">
+                      {detalhesIngredientes.length === 0 ? (
+                        <span className="text-xs text-white/40 italic">
+                          Nenhum ingrediente adicionado ainda. Clique nas sugestões abaixo ou digite.
+                        </span>
+                      ) : (
+                        detalhesIngredientes.map((ing, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#EA1D2C]/20 border border-[#EA1D2C]/40 px-2.5 py-1 text-xs font-medium text-white"
+                          >
+                            {ing}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDetalhesIngredientes(
+                                  detalhesIngredientes.filter((_, idx) => idx !== i),
+                                )
+                              }
+                              className="text-white/60 hover:text-white cursor-pointer"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Sugestões da Categoria */}
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[11px] text-zinc-400">
+                        Sugestões rápidas para {company?.categoria || 'o nicho'}:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sugestoes
+                          .filter((s) => !detalhesIngredientes.includes(s))
+                          .map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() =>
+                                setDetalhesIngredientes([...detalhesIngredientes, s])
+                              }
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-300 hover:bg-[#EA1D2C]/20 hover:text-white hover:border-[#EA1D2C]/40 transition-colors cursor-pointer"
+                            >
+                              + {s}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Custom ingredient input */}
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={novoIngrediente}
+                        onChange={(e) => setNovoIngrediente(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (novoIngrediente.trim() && !detalhesIngredientes.includes(novoIngrediente.trim())) {
+                              setDetalhesIngredientes([
+                                ...detalhesIngredientes,
+                                novoIngrediente.trim(),
+                              ]);
+                              setNovoIngrediente('');
+                            }
+                          }
+                        }}
+                        placeholder="Digite outro ingrediente e aperte Enter..."
+                        className="flex-1 rounded-xl border border-white/15 bg-black/50 p-2.5 text-xs text-white focus:border-[#EA1D2C] focus:outline-hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (novoIngrediente.trim() && !detalhesIngredientes.includes(novoIngrediente.trim())) {
+                            setDetalhesIngredientes([
+                              ...detalhesIngredientes,
+                              novoIngrediente.trim(),
+                            ]);
+                            setNovoIngrediente('');
+                          }
+                        }}
+                        className="rounded-xl border-white/20 text-xs px-3"
+                      >
+                        Adicionar
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      type="submit"
+                      disabled={salvandoDetalhes}
+                      className="bg-[#EA1D2C] hover:bg-[#ff3b4b] text-white text-xs font-bold rounded-xl px-5 h-9"
+                    >
+                      {salvandoDetalhes ? 'Salvando...' : 'Salvar detalhes do prato'}
+                    </Button>
+                  </div>
+                </form>
+              );
+            })()}
 
             {/* SEÇÃO FOTOS (1 a 3) */}
             <div className="space-y-3">

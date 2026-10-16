@@ -27,7 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { toast } from 'sonner';
 import { AGENTE_FLUXOS, type AgenteFluxo, type AgentePasso } from '@/data/agente-fluxos';
 import { useSpeech, matchKeywordsToOptions } from '@/lib/speech';
-import { usePratos } from '@/lib/data/pratos';
+import { usePratos, useUpdatePratoDetails, type Prato } from '@/lib/data/pratos';
 import { useCompany } from '@/lib/data/company';
 import { useSaveMaterial } from '@/lib/data/materials';
 import { buildPromptBlueprint, type PromptBlueprintResult } from '@/data/prompt-blueprint';
@@ -77,6 +77,46 @@ export function AgenteFluxoDialog({
   const [copiedTab, setCopiedTab] = useState<'tudo' | 'sistema' | 'pedido' | null>(null);
   const [showExplanationModal, setShowExplanationModal] = useState(false);
   const [hoveredOptionId, setHoveredOptionId] = useState<string | null>(null);
+
+  // Inline dish completion state
+  const updatePratoMutation = useUpdatePratoDetails();
+  const [completarPrato, setCompletarPrato] = useState<Prato | null>(null);
+  const [completarPreco, setCompletarPreco] = useState('');
+  const [completarIngredientes, setCompletarIngredientes] = useState('');
+  const [salvandoCompletar, setSalvandoCompletar] = useState(false);
+
+  const handleSaveCompletar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!completarPrato) return;
+    const numPreco = completarPreco.trim() ? parseFloat(completarPreco.replace(',', '.')) : null;
+    const ingArr = completarIngredientes
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    setSalvandoCompletar(true);
+    try {
+      await updatePratoMutation.mutateAsync({
+        id: completarPrato.id,
+        preco: numPreco,
+        ingredientes: ingArr,
+      });
+      // Also update current answers if this dish was chosen
+      if (answers[fluxo?.passos[currentStepIndex]?.variavel || 'prato'] === completarPrato.nome) {
+        setAnswers((prev) => ({
+          ...prev,
+          ...(numPreco ? { preco: numPreco, preco_condicao: `R$ ${numPreco.toFixed(2).replace('.', ',')}` } : {}),
+          ...(ingArr.length ? { ingredientes: ingArr.join(', ') } : {}),
+        }));
+      }
+      toast.success('Dados do prato atualizados com sucesso!');
+      setCompletarPrato(null);
+    } catch {
+      toast.error('Erro ao atualizar dados do prato.');
+    } finally {
+      setSalvandoCompletar(false);
+    }
+  };
 
   // Web Speech API
   const {
@@ -1081,39 +1121,94 @@ export function AgenteFluxoDialog({
 
                     {pratos.map((p) => {
                       const isSelected = answers[currentStep.variavel] === p.nome;
-                      const photoCount = (p.fotos || p.prato_fotos || []).length;
+                      const coverPhoto = p.fotos?.[0]?.url || p.prato_fotos?.[0]?.url;
+                      const hasIngredients = Array.isArray(p.ingredientes) && p.ingredientes.length > 0;
+                      const hasPrice = p.preco !== undefined && p.preco !== null;
+                      const isMissingInfo = !hasIngredients || !hasPrice;
 
                       return (
-                        <button
+                        <div
                           key={p.id}
-                          type="button"
                           onClick={() => {
                             setAnswers((prev) => ({
                               ...prev,
                               [currentStep.variavel]: p.nome,
+                              ...(p.preco ? { preco: p.preco, preco_condicao: `R$ ${Number(p.preco).toFixed(2).replace('.', ',')}` } : {}),
+                              ...(hasIngredients ? { ingredientes: p.ingredientes?.join(', ') } : {}),
                             }));
                           }}
-                          className={`min-h-[72px] p-4 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                          className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
                             isSelected
-                              ? 'border-[#EA1D2C] bg-[#EA1D2C]/10 text-white'
+                              ? 'border-[#EA1D2C] bg-[#EA1D2C]/10 text-white shadow-sm'
                               : 'border-white/10 bg-white/5 text-zinc-300 hover:border-white/20 hover:text-white'
                           }`}
                         >
-                          <div className="min-w-0 pr-2">
-                            <span className="text-sm font-bold block text-white truncate">
-                              {p.nome}
-                            </span>
-                            <span className="text-xs text-zinc-400">
-                              {photoCount} fotos na pasta
-                            </span>
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            {/* Foto do prato (SEM CÍRCULO) */}
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-black/60 flex items-center justify-center">
+                              {coverPhoto ? (
+                                <img src={coverPhoto} alt={p.nome} className="h-full w-full object-cover" />
+                              ) : (
+                                <UtensilsCrossed className="h-5 w-5 text-white/30" />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold block text-white truncate">
+                                  {p.nome}
+                                </span>
+                                {p.destaque && (
+                                  <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded-md shrink-0">
+                                    {p.destaque}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs">
+                                {hasPrice ? (
+                                  <span className="font-bold text-emerald-400">
+                                    R$ {Number(p.preco).toFixed(2).replace('.', ',')}
+                                  </span>
+                                ) : (
+                                  <span className="text-white/40 text-[11px]">Sem preço</span>
+                                )}
+
+                                {hasIngredients ? (
+                                  <span className="text-zinc-400 text-[11px] truncate max-w-[200px]" title={p.ingredientes?.join(', ')}>
+                                    · {p.ingredientes?.join(', ')}
+                                  </span>
+                                ) : (
+                                  <span className="text-white/40 text-[11px]">· Sem ingredientes</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
-                          {isSelected && (
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#EA1D2C] text-white">
-                              <Check className="h-4 w-4" />
-                            </span>
-                          )}
-                        </button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isMissingInfo && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCompletarPrato(p);
+                                  setCompletarPreco(p.preco !== undefined && p.preco !== null ? String(p.preco) : '');
+                                  setCompletarIngredientes(p.ingredientes?.join(', ') || '');
+                                }}
+                                className="text-[10px] font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                title="Preencher preço e ingredientes deste prato"
+                              >
+                                + Completar
+                              </button>
+                            )}
+
+                            {isSelected && (
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#EA1D2C] text-white">
+                                <Check className="h-4 w-4" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -1473,6 +1568,77 @@ export function AgenteFluxoDialog({
               >
                 Entendi, voltar ao prompt
               </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Mini modal de completar dados do prato sem sair do fluxo */}
+        {completarPrato && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+            <div className="relative w-full max-w-md rounded-2xl border border-white/15 bg-[#141414] p-5 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Completar dados de {completarPrato.nome}</h3>
+                  <p className="text-xs text-white/60">
+                    Preencha sem sair do fluxo. Os dados serão salvos no prato.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCompletarPrato(null)}
+                  className="rounded-lg p-1 text-zinc-400 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCompletar} className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-white/70 uppercase tracking-wider block mb-1">
+                    Preço de venda (R$)
+                  </label>
+                  <input
+                    type="text"
+                    value={completarPreco}
+                    onChange={(e) => setCompletarPreco(e.target.value)}
+                    placeholder="Ex: 38.90"
+                    className="w-full rounded-xl border border-white/15 bg-black/50 p-2.5 text-xs text-white focus:border-[#EA1D2C] focus:outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-white/70 uppercase tracking-wider block mb-1">
+                    Ingredientes principais (separados por vírgula)
+                  </label>
+                  <textarea
+                    value={completarIngredientes}
+                    onChange={(e) => setCompletarIngredientes(e.target.value)}
+                    rows={3}
+                    placeholder="Ex: pão brioche, blend 180g, queijo cheddar, bacon crocante, maionese defumada"
+                    className="w-full rounded-xl border border-white/15 bg-black/50 p-2.5 text-xs text-white focus:border-[#EA1D2C] focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCompletarPrato(null)}
+                    className="rounded-xl border-white/20 text-xs"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={salvandoCompletar}
+                    size="sm"
+                    className="bg-[#EA1D2C] hover:bg-[#ff3b4b] text-white rounded-xl text-xs font-bold"
+                  >
+                    {salvandoCompletar ? 'Salvando...' : 'Salvar e usar'}
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         )}

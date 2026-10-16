@@ -20,15 +20,16 @@ export interface PromptBlueprintParams {
   company?: Record<string, any> | null;
   answers: Record<string, any>;
   prato?: {
-    nome?: string;
-    ingredientes?: string[];
-    fotos?: any[];
-    prato_fotos?: any[];
-    preco?: number;
-    categoria?: string;
-    descricao?: string;
+    nome?: string | undefined;
+    ingredientes?: string[] | undefined;
+    fotos?: any[] | undefined;
+    prato_fotos?: any[] | undefined;
+    preco?: number | null | undefined;
+    destaque?: string | null | undefined;
+    categoria?: string | undefined;
+    descricao?: string | undefined;
     [key: string]: any;
-  } | null;
+  } | null | undefined;
   spokenDetails?: string;
 }
 

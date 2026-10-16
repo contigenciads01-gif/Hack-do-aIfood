@@ -32,6 +32,9 @@ export interface Prato {
   id: string;
   user_id: string;
   nome: string;
+  ingredientes?: string[] | undefined;
+  preco?: number | null | undefined;
+  destaque?: string | null | undefined;
   criado_em: string;
   fotos: PratoFoto[];
   prato_fotos?: PratoFoto[];
@@ -322,6 +325,11 @@ export function usePratos() {
             id: p.id,
             user_id: p.user_id,
             nome: p.nome,
+            ingredientes: Array.isArray(p.ingredientes)
+              ? p.ingredientes
+              : localMatch?.ingredientes || [],
+            preco: p.preco !== undefined && p.preco !== null ? Number(p.preco) : (localMatch?.preco ?? null),
+            destaque: p.destaque ?? localMatch?.destaque ?? null,
             criado_em: p.criado_em,
             fotos: finalFotos,
             prato_fotos: finalFotos,
@@ -487,6 +495,78 @@ export function useRenamePrato() {
       queryClient.setQueryData(['pratos', user?.id], (old: Prato[] | undefined) => {
         if (!old) return old;
         return old.map((p) => (p.id === id ? { ...p, nome: safeTrim(novoNome) } : p));
+      });
+      queryClient.invalidateQueries({ queryKey: ['pratos'] });
+    },
+  });
+}
+
+/**
+ * Mutation to update prato details: ingredients, price, highlight, and name.
+ */
+export function useUpdatePratoDetails() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      nome,
+      ingredientes,
+      preco,
+      destaque,
+    }: {
+      id: string;
+      nome?: string;
+      ingredientes?: string[];
+      preco?: number | null;
+      destaque?: string | null;
+    }) => {
+      const userId = user?.id || 'guest';
+      const allLocal = loadLocalPratos(userId);
+      const updated = allLocal.map((p) => {
+        if (p.id !== id) return p;
+        return {
+          ...p,
+          nome: nome !== undefined ? safeTrim(nome) : p.nome,
+          ingredientes: ingredientes !== undefined ? ingredientes : p.ingredientes || [],
+          preco: preco !== undefined ? preco : p.preco,
+          destaque: destaque !== undefined ? destaque : p.destaque,
+        };
+      });
+      saveLocalPratos(userId, updated);
+
+      if (user?.id) {
+        const updatePayload: Record<string, any> = {};
+        if (nome !== undefined) updatePayload['nome'] = safeTrim(nome);
+        if (ingredientes !== undefined) updatePayload['ingredientes'] = ingredientes;
+        if (preco !== undefined) updatePayload['preco'] = preco;
+        if (destaque !== undefined) updatePayload['destaque'] = destaque;
+
+        try {
+          await (supabase as any)
+            .from('pratos')
+            .update(updatePayload)
+            .eq('id', id)
+            .eq('user_id', user.id);
+        } catch (err) {
+          console.warn('Supabase update prato details exception:', err);
+        }
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.setQueryData(['pratos', user?.id], (old: Prato[] | undefined) => {
+        if (!old) return old;
+        return old.map((p) => {
+          if (p.id !== variables.id) return p;
+          return {
+            ...p,
+            ...(variables.nome !== undefined ? { nome: safeTrim(variables.nome) } : {}),
+            ...(variables.ingredientes !== undefined ? { ingredientes: variables.ingredientes } : {}),
+            ...(variables.preco !== undefined ? { preco: variables.preco } : {}),
+            ...(variables.destaque !== undefined ? { destaque: variables.destaque } : {}),
+          };
+        });
       });
       queryClient.invalidateQueries({ queryKey: ['pratos'] });
     },
