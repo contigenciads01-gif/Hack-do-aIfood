@@ -82,6 +82,12 @@ export function buildPromptBlueprint({
       : '#EA1D2C, #1A1A1A, #FFFFFF';
   const personalidade = (company && company['personalidade']) || 'Acolhedora, autêntica e focada no cliente';
   const tomPadrao = answers['tom'] || (company && company['tom']) || 'Apetitoso, direto e caloroso';
+  const horario = (company && company['horario_funcionamento']) || '';
+  const atendimento = (company && company['formas_atendimento']) || '';
+  const endereco =
+    (company && company['mostrar_endereco_anuncios'] && company['endereco'])
+      ? `${company['endereco']}`
+      : '';
 
   // ─────────────────────────────────────────────────────────────
   // 2. PARTE 1: INSTRUÇÕES DE SISTEMA (COPIAR UMA VEZ)
@@ -101,6 +107,9 @@ ${slogan ? `- Slogan / Promessa: ${slogan}` : ''}
 - Identidade visual / Cores: ${cores}
 - Personalidade da marca: ${personalidade}
 - Estilo e tom de voz: ${tomPadrao}
+${horario ? `- Horário de funcionamento: ${horario}` : ''}
+${atendimento ? `- Formas de atendimento: ${atendimento}` : ''}
+${endereco ? `- Endereço para retirada / salão: ${endereco}` : ''}
 </marca>
 
 <regras_gerais>
@@ -138,18 +147,35 @@ ${slogan ? `- Slogan / Promessa: ${slogan}` : ''}
 
   switch (canonical) {
     case 'anuncio_instagram': {
-      const objetivo = answers['objetivo'] || 'Vender no almoço ou jantar hoje';
-      const formato = answers['formato'] || 'Vídeo curto (Reels ou Stories)';
-      const ganchoEstilo = answers['estilo_gancho'] || 'Curiosidade ou apetite imediato';
-      const cta = answers['cta'] || 'Tocar no link da bio para pedir no iFood ou WhatsApp';
+      const estiloAnuncio = answers['estilo_anuncio'] || 'Apetite / Vontade incontrolável';
+      const ofertaDetalhe =
+        answers['oferta_detalhe'] ||
+        answers['oferta_desc'] ||
+        answers['oferta'] ||
+        'Sem oferta especial (preço normal)';
+      const formato = answers['formato'] || 'Reels ou Post no feed';
+      const cta = answers['cta'] || 'Pedir no iFood agora';
+      const tomCampanha = answers['tom'] || tomPadrao;
+      const precoPrato = prato?.preco
+        ? `R$ ${Number(prato.preco).toFixed(2).replace('.', ',')}`
+        : answers['preco']
+          ? `R$ ${String(answers['preco'])}`
+          : '';
+      const destaquePrato = prato?.destaque || answers['destaque'] || '';
 
-      tarefaDesc = `Criar uma campanha de anúncio de alta conversão para o Instagram divulgando o prato "${nomePrato}" com foco em ${objetivo}.`;
-      entradasEspecificas = `- Formato do post: ${formato}
-- Estilo do gancho de abertura: ${ganchoEstilo}
-- Chamada para ação (CTA): ${cta}
-- Prato em destaque: ${nomePrato}
+      tarefaDesc = `Criar uma campanha de anúncio de alta conversão para o Instagram divulgando "${nomePrato}" com foco no estilo ${estiloAnuncio}.`;
+      entradasEspecificas = `- Prato em destaque: ${nomePrato}
 - Ingredientes e composição: ${ingredientes}
-- Tom da campanha: ${tomPadrao}`;
+${precoPrato ? `- Preço do prato: ${precoPrato}` : ''}
+${destaquePrato ? `- Destaque do prato no cardápio: ${destaquePrato}` : ''}
+- Estilo do anúncio: ${estiloAnuncio}
+${ofertaDetalhe && ofertaDetalhe !== 'Sem oferta especial (preço normal)' ? `- Oferta / Benefício promocional: ${ofertaDetalhe}` : ''}
+${horario ? `- Horário de funcionamento da loja: ${horario}` : ''}
+${atendimento ? `- Formas de atendimento: ${atendimento}` : ''}
+${endereco ? `- Endereço da loja: ${endereco}` : ''}
+- Formato: ${formato}
+- Chamada para ação (CTA): ${cta}
+- Tom da campanha: ${tomCampanha}`;
       break;
     }
 
@@ -157,10 +183,12 @@ ${slogan ? `- Slogan / Promessa: ${slogan}` : ''}
       const estiloFoto = answers['estilo'] || 'Foto profissional de cardápio iFood com iluminação de estúdio';
       const angulo = answers['angulo'] || '45 graus apetitoso com foco no ingrediente principal';
       const cenario = answers['cenario'] || 'Mesa rústica escura com acessórios sutis nas cores da marca';
+      const destaquePrato = prato?.destaque || answers['destaque'] || '';
 
       tarefaDesc = `Gerar um prompt fotográfico ultra-detalhado para ser renderizado em IAs de imagem (Midjourney v6, DALL-E 3 ou ChatGPT) ou usado como briefing para fotógrafo gastronômico, reproduzindo com fidelidade absoluta o prato "${nomePrato}".`;
       entradasEspecificas = `- Prato: ${nomePrato}
 - Ingredientes visíveis reais: ${ingredientes}
+${destaquePrato ? `- Diferencial visual / Selo: ${destaquePrato}` : ''}
 - Estilo visual desejado: ${estiloFoto}
 - Ângulo de câmera: ${angulo}
 - Cenário e superfície: ${cenario}
@@ -169,13 +197,15 @@ ${slogan ? `- Slogan / Promessa: ${slogan}` : ''}
     }
 
     case 'descricao_ifood': {
-      const diferencialPrato = answers['diferencial'] || 'Artesanal e feito na hora';
+      const diferencialPrato = prato?.destaque || answers['diferencial'] || 'Artesanal e feito na hora';
       const tamanhoPorcao = answers['porcao'] || 'Individual bem servido';
       const sugestaoBebida = answers['combina_com'] || 'Bebida gelada ou sobremesa da casa';
+      const precoPrato = prato?.preco ? `R$ ${Number(prato.preco).toFixed(2).replace('.', ',')}` : answers['preco'] || '';
 
       tarefaDesc = `Criar o título vendedor e a descrição apetitosa perfeita para cadastrar o prato "${nomePrato}" no cardápio do iFood, otimizada para o app mobile e decisão de compra em menos de 5 segundos.`;
       entradasEspecificas = `- Prato: ${nomePrato}
 - Ingredientes reais: ${ingredientes}
+${precoPrato ? `- Preço no cardápio: ${precoPrato}` : ''}
 - Tamanho da porção / Serve: ${tamanhoPorcao}
 - Diferencial de preparo: ${diferencialPrato}
 - Sugestão de cross-sell (combina com): ${sugestaoBebida}`;
@@ -183,9 +213,13 @@ ${slogan ? `- Slogan / Promessa: ${slogan}` : ''}
     }
 
     case 'promocao_preco': {
-      const precoAtual = answers['preco_atual'] || '39.90';
-      const custo = answers['custo'] || '15.00';
-      const comissao = answers['comissao'] || '23';
+      const precoAtual =
+        (prato?.preco ? Number(prato.preco).toFixed(2) : '') ||
+        (answers['preco_atual']?.preco ? String(answers['preco_atual'].preco) : '') ||
+        (typeof answers['preco_atual'] === 'string' ? answers['preco_atual'] : '') ||
+        '39.90';
+      const custo = (answers['preco_atual']?.custo ? String(answers['preco_atual'].custo) : '') || answers['custo'] || '15.00';
+      const comissao = (answers['preco_atual']?.comissao ? String(answers['preco_atual'].comissao) : '') || answers['comissao'] || '23';
       const tipoPromo = answers['tipo_promo'] || 'Combo promocional para aumentar ticket médio';
 
       tarefaDesc = `Realizar a análise de engenharia de cardápio, precificação psicológica e estratégia promocional lucrativa para o prato "${nomePrato}" no iFood.`;

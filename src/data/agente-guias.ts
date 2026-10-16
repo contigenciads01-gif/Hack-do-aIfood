@@ -28,50 +28,15 @@ export const STEP_HELP_GUIDES: Record<string, Record<string, PassoGuia>> = {
       exemploBom: 'Escolha seu prato mais vendido ou o carro-chefe da semana.',
       evite: 'Evite tentar falar de todo o cardápio num único post; post que vende foca em um item por vez.',
     },
-    objetivo: {
-      paraQue: 'Alinha o gancho dos primeiros 3 segundos da legenda com o resultado comercial.',
-      exemploBom: 'Mais pedidos no iFood para transformar fome imediata em cliques.',
-      evite: 'Evite objetivos vagos como "ficar famoso"; foque em conversão ou novidade.',
-    },
-    clima: {
-      paraQue: 'Regula o ritmo das frases e o vocabulário para combinar com o perfil dos seus clientes.',
-      exemploBom: 'Divertido e leve para hamburguerias, pizzarias e açaí.',
-      evite: 'Evite tons excessivamente formais que parecem banco ou escritório jurídico.',
-    },
-    quando: {
-      paraQue: 'Insere ganchos de momento temporal no texto ("sextou", "almoço corrido", "domingo em família").',
-      exemploBom: 'Escolha "Hoje" para urgência ou "Sexta-feira e Happy Hour" para o fim de semana.',
-      evite: 'Evite usar expressões temporais desatualizadas no anúncio fixo.',
+    estilo_anuncio: {
+      paraQue: 'Define a abordagem e o gancho magnético dos primeiros 3 segundos para converter visualizações em pedidos.',
+      exemploBom: 'Apetite / Vontade incontrolável para hamburguerias e delivery no iFood.',
+      evite: 'Evite promoções vazias se a sua cozinha não tem margem.',
     },
     oferta: {
-      paraQue: 'Cria o incentivo decisivo que faz o cliente parar de rolar o feed e pedir.',
+      paraQue: 'Define o incentivo decisivo que faz o cliente parar de rolar o feed e pedir.',
       exemploBom: 'Combo com acompanhamento ou 10% de desconto no primeiro pedido.',
       evite: 'Nunca selecione uma promoção que sua cozinha não consiga sustentar financeiramente.',
-    },
-    formato: {
-      paraQue: 'Molda o roteiro da IA para a proporção e dinâmica correta da tela.',
-      exemploBom: 'Reels para alcance de novos clientes ou Carrossel para mostrar recheios.',
-      evite: 'Evite textos longos para Reels ou roteiros de vídeo para posts estáticos.',
-    },
-    cta: {
-      paraQue: 'Diz exatamente qual ação simples o cliente deve tomar para pedir a comida.',
-      exemploBom: 'Link na bio para ir ao iFood ou WhatsApp sem intermediários.',
-      evite: 'Evite colocar mais de duas opções de saída no mesmo anúncio.',
-    },
-    tamanho_texto: {
-      paraQue: 'Ajusta a densidade do texto na tela do celular do cliente.',
-      exemploBom: 'Médio (2 a 3 parágrafos) com espaçamento para leitura confortável.',
-      evite: 'Evite blocos de texto sem parágrafo que cansam a vista.',
-    },
-    emojis: {
-      paraQue: 'Dá toques visuais gastronômicos nos tópicos principais da legenda.',
-      exemploBom: 'Poucos e moderados para manter autoridade profissional.',
-      evite: 'Evite encher a tela de emojis em cada linha.',
-    },
-    detalhes_fala: {
-      paraQue: 'Permite ditar segredos da sua receita, ponto da carne ou molhos artesanais.',
-      exemploBom: '"O queijo é maçaricado na chapa e o bacon é crocante em cubos."',
-      evite: 'Não precisa repetir o que já foi marcado nas perguntas anteriores.',
     },
   },
 
@@ -336,15 +301,10 @@ export const FLUXO_READY_EXAMPLES: Record<string, FluxoExemploPronto> = {
   anuncio_instagram: {
     tituloExemplo: 'Smash Burger Duplo Cheddar (Hamburgueria do Zé)',
     answers: {
-      prato_ou_tema: 'Smash Burger Duplo com Cheddar Inglês',
-      objetivo: 'Mais pedidos no iFood',
-      clima_desc: 'Divertido e leve',
-      ocasiao_desc: 'Hoje (urgência imediata)',
-      oferta_desc: 'Combo com acompanhamento ou bebida',
-      formato: 'Reels (vídeo curto de 15 a 30s)',
-      cta: 'Pedir no iFood agora',
-      tamanho_texto: 'Médio (2 a 3 parágrafos)',
-      emojis: 'Poucos e moderados',
+      nome_prato: 'Smash Burger Duplo com Cheddar Inglês',
+      estilo_anuncio: 'Apetite / Vontade incontrolável: despertar desejo sensorial incontrolável, foco total no sabor, textura e aroma irresistível',
+      estilo_anuncio_id: 'apetite',
+      oferta_detalhe: 'Sem oferta especial (preço normal)',
     },
     spokenDetails:
       'Destacar o queijo derretendo na chapa, bacon bem crocante e nossa maionese da casa verde feita artesanalmente.',

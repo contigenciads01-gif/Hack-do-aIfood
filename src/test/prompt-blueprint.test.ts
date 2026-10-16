@@ -7,6 +7,7 @@ import {
   getFluxoDeliverables,
   getFluxoReadyExample,
 } from '@/data/agente-guias';
+import { AGENTE_FLUXOS } from '@/data/agente-fluxos';
 
 describe('Prompt Blueprint Engine', () => {
   it('normalizes tool IDs correctly', () => {
@@ -176,5 +177,74 @@ describe('Agente Guias & Usabilidade', () => {
     expect(ex).not.toBeNull();
     expect(ex?.tituloExemplo).toContain('Smash Burger');
     expect(ex?.answers).toBeTruthy();
+  });
+
+  it('anuncio_instagram has exactly 3 steps with 8 styles containing fraseExemplo and condicao', () => {
+    const fluxo = AGENTE_FLUXOS['anuncio_instagram'];
+    expect(fluxo).toBeDefined();
+    expect(fluxo.passos.length).toBe(3);
+
+    const [passoPrato, passoEstilo, passoOferta] = fluxo.passos;
+    expect(passoPrato.id).toBe('prato');
+    expect(passoPrato.tipo).toBe('prato');
+
+    expect(passoEstilo.id).toBe('estilo_anuncio');
+    expect(passoEstilo.opcoes?.length).toBe(8);
+
+    // Each style has fraseExemplo and isPromocional defined
+    passoEstilo.opcoes?.forEach((opt: any) => {
+      expect(opt.fraseExemplo).toBeTruthy();
+      expect(typeof opt.isPromocional).toBe('boolean');
+    });
+
+    // passoOferta has condicao that evaluates true only for promotional styles
+    expect(passoOferta.id).toBe('oferta');
+    expect(typeof passoOferta.condicao).toBe('function');
+
+    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'promocao_preco' })).toBe(true);
+    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'combo_almoco' })).toBe(true);
+    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'urgencia_unidades' })).toBe(true);
+
+    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'apetite' })).toBe(false);
+    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'bastidores' })).toBe(false);
+    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'fim_de_semana' })).toBe(false);
+    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'novidade' })).toBe(false);
+    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'prova_social' })).toBe(false);
+  });
+
+  it('incorporates company schedule, channels, dish price and ingredients with 0 unresolved {{ placeholders', () => {
+    const result = buildPromptBlueprint({
+      toolId: 'anuncio_instagram',
+      company: {
+        nome: 'Pizzaria do Bairro',
+        categoria: 'Pizzaria & Forno a Lenha',
+        cidade: 'Curitiba - PR',
+        horario_funcionamento: 'Terça a Domingo das 18h às 23h30',
+        formas_atendimento: 'Delivery próprio e iFood',
+        endereco: 'Rua XV de Novembro, 100',
+        mostrar_endereco_anuncios: true,
+      },
+      answers: {
+        estilo_anuncio: 'Promoção com preço em destaque',
+        oferta_detalhe: 'Desconto especial de preço',
+        cta: 'Pedir no iFood agora',
+      },
+      prato: {
+        nome: 'Pizza Calabresa Especial',
+        ingredientes: ['Massa artesanal', 'Calabresa defumada', 'Cebola roxa', 'Azeitonas pretas'],
+        preco: 49.9,
+        destaque: 'Mais pedida da casa',
+      },
+    });
+
+    expect(result.completo).not.toContain('{{');
+    expect(result.completo).toContain('Pizzaria do Bairro');
+    expect(result.completo).toContain('Terça a Domingo das 18h às 23h30');
+    expect(result.completo).toContain('Delivery próprio e iFood');
+    expect(result.completo).toContain('Rua XV de Novembro, 100');
+    expect(result.completo).toContain('Pizza Calabresa Especial');
+    expect(result.completo).toContain('R$ 49,90');
+    expect(result.completo).toContain('Calabresa defumada');
+    expect(result.completo).toContain('Mais pedida da casa');
   });
 });

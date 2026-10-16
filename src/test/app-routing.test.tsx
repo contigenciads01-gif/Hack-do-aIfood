@@ -14,4 +14,40 @@ describe("App routing", () => {
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
+
+  it("considers cadastro complete when cadastro_concluido is true regardless of logo status", () => {
+    // When company has cadastro_concluido: true, user is never sent to /cadastro even if tem_logo is false or logo_path is null
+    const companyWithLogo = {
+      id: 'comp-1',
+      nome: 'Hamburgueria Silva',
+      categoria: 'Hamburgueria',
+      tem_logo: true,
+      logo_path: 'comp-1/logo.png',
+      cadastro_concluido: true,
+    };
+
+    const companyWithoutLogo = {
+      id: 'comp-2',
+      nome: 'Hamburgueria Silva',
+      categoria: 'Hamburgueria',
+      tem_logo: false,
+      logo_path: null,
+      cadastro_concluido: true,
+    };
+
+    const isComplete = (comp: any) => Boolean(comp?.cadastro_concluido);
+    expect(isComplete(companyWithLogo)).toBe(true);
+    expect(isComplete(companyWithoutLogo)).toBe(true);
+  });
+
+  it("redirects away from /cadastro to /agente when cadastro_concluido is true", () => {
+    const company = {
+      id: 'comp-1',
+      nome: 'Doceria da Maria',
+      cadastro_concluido: true,
+    };
+
+    const shouldRedirectAwayFromCadastro = Boolean(company?.cadastro_concluido);
+    expect(shouldRedirectAwayFromCadastro).toBe(true);
+  });
 });

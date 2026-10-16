@@ -20,6 +20,9 @@ import {
   FileText,
   Layers,
   BookOpen,
+  ChevronDown,
+  ChevronUp,
+  Sliders,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -77,6 +80,7 @@ export function AgenteFluxoDialog({
   const [copiedTab, setCopiedTab] = useState<'tudo' | 'sistema' | 'pedido' | null>(null);
   const [showExplanationModal, setShowExplanationModal] = useState(false);
   const [hoveredOptionId, setHoveredOptionId] = useState<string | null>(null);
+  const [detalhesAccordionOpen, setDetalhesAccordionOpen] = useState(false);
 
   // Inline dish completion state
   const updatePratoMutation = useUpdatePratoDetails();
@@ -316,8 +320,17 @@ export function AgenteFluxoDialog({
       return;
     }
 
-    if (currentStepIndex < totalSteps - 1) {
-      setCurrentStepIndex((prev) => prev + 1);
+    let nextIdx = currentStepIndex + 1;
+    while (nextIdx < totalSteps) {
+      const nextStep = fluxo.passos[nextIdx];
+      if (!nextStep?.condicao || nextStep.condicao(answers)) {
+        break;
+      }
+      nextIdx++;
+    }
+
+    if (nextIdx < totalSteps) {
+      setCurrentStepIndex(nextIdx);
     } else {
       setIsSummaryView(true);
     }
@@ -325,11 +338,26 @@ export function AgenteFluxoDialog({
 
   const handlePrev = () => {
     if (isSummaryView) {
+      let lastActive = totalSteps - 1;
+      while (lastActive >= 0) {
+        const step = fluxo.passos[lastActive];
+        if (!step?.condicao || step.condicao(answers)) break;
+        lastActive--;
+      }
+      setCurrentStepIndex(Math.max(0, lastActive));
       setIsSummaryView(false);
       return;
     }
-    if (currentStepIndex > 0) {
-      setCurrentStepIndex((prev) => prev - 1);
+
+    let prevIdx = currentStepIndex - 1;
+    while (prevIdx >= 0) {
+      const prevStep = fluxo.passos[prevIdx];
+      if (!prevStep?.condicao || prevStep.condicao(answers)) break;
+      prevIdx--;
+    }
+
+    if (prevIdx >= 0) {
+      setCurrentStepIndex(prevIdx);
     } else {
       onOpenChange(false);
     }
@@ -337,8 +365,11 @@ export function AgenteFluxoDialog({
 
   // Generate prompt with 900ms build delay and AnimatedBrain
   const handleGeneratePrompt = () => {
-    // Validate required fields
-    const missing = fluxo.passos.filter(
+    // Validate required fields only among active steps
+    const activeSteps = fluxo.passos.filter(
+      (p) => !p.condicao || p.condicao(answers),
+    );
+    const missing = activeSteps.filter(
       (p) => p.obrigatorio && !answers[p.variavel],
     );
 
@@ -835,51 +866,85 @@ export function AgenteFluxoDialog({
               <div className="space-y-1">
                 <h3 className="text-lg font-black text-white">Confira suas escolhas</h3>
                 <p className="text-xs text-zinc-400">
-                  Você pode editar qualquer resposta antes de gerar o prompt oficial.
+                  Tudo pronto com os dados da sua empresa. Você pode ajustar detalhes antes de gerar o prompt oficial.
                 </p>
               </div>
 
-              {/* Review Rows */}
+              {/* ═══════ 5 BRAND & DISH SUMMARY CHIPS ═══════ */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-zinc-200">
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Loja: {company?.nome || 'Minha Loja'}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-zinc-200">
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Cores: {Array.isArray(company?.cores) && company.cores.length > 0 ? `${company.cores.length} cores salvas` : 'Cores salvas'}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-zinc-200">
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Logo: {company?.logo_path ? 'Anexada' : 'Definida'}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-zinc-200">
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>
+                    Horário:{' '}
+                    {typeof company?.horario_funcionamento === 'string'
+                      ? company.horario_funcionamento
+                      : company?.horario_funcionamento
+                        ? 'Configurado'
+                        : 'Definido'}
+                  </span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-zinc-200">
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Prato: {selectedDishName || 'Cardápio'}</span>
+                </div>
+              </div>
+
+              {/* Review Rows for active steps */}
               <div className="rounded-2xl border border-white/10 bg-[#161618] divide-y divide-white/10 overflow-hidden">
-                {fluxo.passos.map((p, idx) => {
-                  const val = answers[p.variavel];
-                  let displayVal = 'Não informado';
-                  if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
-                    displayVal = `Preço: R$ ${val.preco || '-'} · Custo: R$ ${val.custo || '-'}`;
-                  } else if (Array.isArray(val)) {
-                    displayVal = val.length > 0 ? val.join(', ') : 'Nenhum selecionado';
-                  } else if (val) {
-                    displayVal = String(val);
-                  }
+                {fluxo.passos
+                  .filter((p) => !p.condicao || p.condicao(answers))
+                  .map((p) => {
+                    const idx = fluxo.passos.findIndex((step) => step.id === p.id);
+                    const val = answers[p.variavel];
+                    let displayVal = 'Não informado';
+                    if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+                      displayVal = `Preço: R$ ${val.preco || '-'} · Custo: R$ ${val.custo || '-'}`;
+                    } else if (Array.isArray(val)) {
+                      displayVal = val.length > 0 ? val.join(', ') : 'Nenhum selecionado';
+                    } else if (val) {
+                      displayVal = String(val);
+                    }
 
-                  return (
-                    <div
-                      key={p.id}
-                      className="p-4 flex items-center justify-between gap-4 hover:bg-white/5 transition-colors"
-                    >
-                      <div className="space-y-0.5 min-w-0">
-                        <span className="text-[11px] font-semibold text-zinc-400 block">
-                          {p.pergunta}
-                        </span>
-                        <p className="text-sm font-bold text-white truncate">{displayVal}</p>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setIsSummaryView(false);
-                          setCurrentStepIndex(idx);
-                        }}
-                        className="h-8 px-2.5 rounded-xl text-xs font-semibold text-[#EA1D2C] hover:bg-[#EA1D2C]/10 shrink-0 gap-1"
+                    return (
+                      <div
+                        key={p.id}
+                        className="p-4 flex items-center justify-between gap-4 hover:bg-white/5 transition-colors"
                       >
-                        <Edit2 className="h-3.5 w-3.5" />
-                        Editar
-                      </Button>
-                    </div>
-                  );
-                })}
+                        <div className="space-y-0.5 min-w-0">
+                          <span className="text-[11px] font-semibold text-zinc-400 block">
+                            {p.pergunta}
+                          </span>
+                          <p className="text-sm font-bold text-white truncate">{displayVal}</p>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setIsSummaryView(false);
+                            setCurrentStepIndex(idx);
+                          }}
+                          className="h-8 px-2.5 rounded-xl text-xs font-semibold text-[#EA1D2C] hover:bg-[#EA1D2C]/10 shrink-0 gap-1"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                          Editar
+                        </Button>
+                      </div>
+                    );
+                  })}
 
                 {spokenDetails && (
                   <div className="p-4 flex items-center justify-between gap-4 bg-[#EA1D2C]/5">
@@ -904,6 +969,116 @@ export function AgenteFluxoDialog({
                 )}
               </div>
 
+              {/* ═══════ COLLAPSED ACCORDION: AJUSTAR DETALHES ═══════ */}
+              <div className="rounded-2xl border border-white/10 bg-[#161618] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setDetalhesAccordionOpen((prev) => !prev)}
+                  className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Sliders className="h-4 w-4 text-[#EA1D2C]" />
+                    <span className="text-sm font-bold text-white">
+                      Ajustar detalhes (CTA, tom de voz, tamanho da legenda)
+                    </span>
+                  </div>
+                  {detalhesAccordionOpen ? (
+                    <ChevronUp className="h-4 w-4 text-zinc-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-zinc-400" />
+                  )}
+                </button>
+
+                {detalhesAccordionOpen && (
+                  <div className="p-4 pt-1 space-y-4 border-t border-white/10 bg-black/30 animate-in fade-in duration-150">
+                    {/* CTA */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-zinc-400 block">
+                        Chamada para ação (CTA):
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: 'Pedir no iFood agora', label: 'Pedir no iFood' },
+                          { id: 'Chamar no WhatsApp', label: 'Chamar no WhatsApp' },
+                          { id: 'Acessar o link da bio', label: 'Link da bio' },
+                          { id: 'Vir comer na loja', label: 'Vir na loja' },
+                        ].map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setAnswers((prev) => ({ ...prev, cta: c.id }))}
+                            className={`p-2.5 rounded-xl border text-xs font-medium text-center transition-all cursor-pointer ${
+                              (answers['cta'] || 'Pedir no iFood agora') === c.id
+                                ? 'border-[#EA1D2C] bg-[#EA1D2C]/15 text-white font-bold'
+                                : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {c.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tom de voz */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-zinc-400 block">
+                        Tom de voz da comunicação:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: 'Apetitoso e sensorial', label: 'Apetitoso' },
+                          { id: 'Divertido e leve', label: 'Divertido' },
+                          { id: 'Elegante e requintado', label: 'Elegante' },
+                          { id: 'Direto ao ponto', label: 'Direto ao ponto' },
+                        ].map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setAnswers((prev) => ({ ...prev, tom: t.id }))}
+                            className={`p-2.5 rounded-xl border text-xs font-medium text-center transition-all cursor-pointer ${
+                              (answers['tom'] || 'Apetitoso e sensorial') === t.id
+                                ? 'border-[#EA1D2C] bg-[#EA1D2C]/15 text-white font-bold'
+                                : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tamanho da legenda */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-zinc-400 block">
+                        Tamanho da legenda:
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'Curto (1 parágrafo)', label: 'Curto (1 §)' },
+                          { id: 'Médio (2 a 3 parágrafos)', label: 'Médio (2-3 §)' },
+                          { id: 'Longo (storytelling completo)', label: 'Longo (História)' },
+                        ].map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() =>
+                              setAnswers((prev) => ({ ...prev, tamanho_texto: s.id }))
+                            }
+                            className={`p-2.5 rounded-xl border text-xs font-medium text-center transition-all cursor-pointer ${
+                              (answers['tamanho_texto'] || 'Médio (2 a 3 parágrafos)') === s.id
+                                ? 'border-[#EA1D2C] bg-[#EA1D2C]/15 text-white font-bold'
+                                : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* ═══════ "O QUE VOCÊ VAI RECEBER" CARD (ETAPA 3) ═══════ */}
               <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#161618] to-black/60 p-5 space-y-3">
                 <span className="text-[11px] font-black uppercase tracking-wider text-[#EA1D2C]">
@@ -924,7 +1099,7 @@ export function AgenteFluxoDialog({
                 <Button
                   type="button"
                   onClick={handleGeneratePrompt}
-                  className="w-full h-14 rounded-2xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-white text-base font-black shadow-xl shadow-[#EA1D2C]/20 gap-2"
+                  className="w-full h-14 rounded-2xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-white text-base font-black shadow-xl shadow-[#EA1D2C]/20 gap-2 cursor-pointer"
                 >
                   <Sparkles className="h-5 w-5" />
                   Gerar prompt
@@ -1425,6 +1600,10 @@ export function AgenteFluxoDialog({
                             setAnswers((prev) => ({
                               ...prev,
                               [currentStep.variavel]: opt.valorPrompt || opt.rotulo,
+                              [`${currentStep.variavel}_id`]: opt.id,
+                              ...(opt.isPromocional !== undefined
+                                ? { [`${currentStep.variavel}_is_promocional`]: opt.isPromocional }
+                                : {}),
                             }));
                           }
                         }}
@@ -1457,8 +1636,12 @@ export function AgenteFluxoDialog({
                           </span>
                         </div>
 
-                        {/* HOVER / TOUCH PHRASE PREVIEW (ETAPA 3) */}
-                        {previewPhrase && (
+                        {/* HOVER / TOUCH PHRASE PREVIEW OR EXAMPLE PHRASE */}
+                        {opt.fraseExemplo ? (
+                          <div className="pt-2 text-xs text-amber-300 font-medium italic border-t border-white/10 mt-1 leading-relaxed">
+                            "{opt.fraseExemplo}"
+                          </div>
+                        ) : previewPhrase ? (
                           <div
                             className={`pt-1 text-[11px] text-amber-300/90 italic transition-opacity ${
                               hoveredOptionId === opt.id || isSelected ? 'opacity-100' : 'opacity-70'
@@ -1466,7 +1649,7 @@ export function AgenteFluxoDialog({
                           >
                             {previewPhrase}
                           </div>
-                        )}
+                        ) : null}
                       </button>
                     );
                   })}
@@ -1513,9 +1696,13 @@ export function AgenteFluxoDialog({
                 <Button
                   type="button"
                   onClick={handleNext}
-                  className="h-12 px-6 rounded-xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-white text-xs font-bold gap-2"
+                  className="h-12 px-6 rounded-xl bg-[#EA1D2C] hover:bg-[#ff3b4b] text-white text-xs font-bold gap-2 cursor-pointer"
                 >
-                  {currentStepIndex === totalSteps - 1 ? 'Ver resumo' : 'Avançar'}
+                  {(() => {
+                    const activeSteps = fluxo.passos.filter((p) => !p.condicao || p.condicao(answers));
+                    const isLastActive = activeSteps[activeSteps.length - 1]?.id === currentStep?.id;
+                    return isLastActive ? 'Ver resumo' : 'Avançar';
+                  })()}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               )}
