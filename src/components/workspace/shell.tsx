@@ -50,6 +50,7 @@ import { useSubscription } from '@/lib/subscription';
 import { SHOW_CEREBRO_MARCA, TUTORIAL_BLOQUEANTE } from '@/config';
 import { GoldenBookIcon } from '@/components/ui/golden-book-icon';
 import { useTutorialProgress } from '@/lib/tutorial-progress';
+import { LogoHack } from '@/components/brand/LogoHack';
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -205,8 +206,8 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <Menu />
           </Button>
 
-          <Link to="/agente" className="workspace-brand">
-            hack du ifood
+          <Link to="/agente" className="workspace-brand inline-flex items-center">
+            <LogoHack className="h-7 w-auto drop-shadow-sm" />
           </Link>
 
           <div className="header-actions">

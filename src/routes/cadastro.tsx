@@ -22,6 +22,7 @@ import { brandPacks } from '@/data/brand-packs';
 import { useAuth } from '@/lib/auth';
 import { useCompany, useSaveCompany, type Company } from '@/lib/data';
 import { extractDominantColors, uploadCompanyLogo } from '@/lib/data/storage';
+import { LogoHack } from '@/components/brand/LogoHack';
 
 export const Route = createFileRoute('/cadastro')({
   head: () => ({
@@ -318,9 +319,7 @@ function CadastroPage() {
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#141414]/90 px-6 py-4 backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl font-black italic tracking-tight text-[#EA1D2C]">
-              hack du ifood
-            </span>
+            <LogoHack className="h-7 w-auto drop-shadow-sm" />
             <span className="hidden text-xs font-semibold uppercase tracking-wider text-white/40 sm:inline-block">
               · Cadastro da Loja
             </span>

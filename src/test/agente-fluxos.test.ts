@@ -16,13 +16,14 @@ describe('Agente Fluxos - Definições e Dados', () => {
     ];
 
     expectedFlows.forEach((flowId) => {
-      expect(AGENTE_FLUXOS[flowId]).toBeDefined();
-      expect(AGENTE_FLUXOS[flowId].titulo).toBeTruthy();
+      const f = AGENTE_FLUXOS[flowId];
+      expect(f).toBeDefined();
+      expect(f?.titulo).toBeTruthy();
     });
   });
 
   it('anuncio_instagram está configurado como Plus', () => {
-    expect(AGENTE_FLUXOS['anuncio_instagram'].isPlus).toBe(true);
+    expect(AGENTE_FLUXOS['anuncio_instagram']?.isPlus).toBe(true);
   });
 
   it('todas as opções dos passos possuem valorPrompt e lista de palavras-chave', () => {

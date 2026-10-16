@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import cinematicBg from '@/assets/login-bg-cinematic.webp';
-import logoHack from '@/assets/logo-hack.png';
+import { LogoHack } from '@/components/brand/LogoHack';
 import { AmbientLighting } from '@/components/login/AmbientLighting';
 import { PhoneHero } from '@/components/login/PhoneHero';
 import { ServicesSection } from '@/components/login/ServicesSection';
@@ -346,12 +346,10 @@ function LoginPage() {
         <div className="my-auto flex flex-col lg:grid lg:grid-cols-[380px_minmax(360px,460px)_1fr] lg:gap-10 xl:gap-16 items-center">
           {/* Coluna 1: Esquerda (380px no desktop) */}
           <div className="w-full lg:w-[380px] lg:shrink-0 flex flex-col relative z-20">
-            {/* Logo Original */}
+            {/* Logo Original (Vetor SVG puro) */}
             <div className="flex items-center">
-              <img
-                src={logoHack}
-                alt="hack du ifood"
-                className="h-14 sm:h-16 w-auto object-contain drop-shadow-[0_4px_16px_rgba(234,29,44,0.3)] animate-fade-in-up"
+              <LogoHack
+                className="h-14 sm:h-16 w-auto drop-shadow-[0_4px_16px_rgba(234,29,44,0.3)] animate-fade-in-up"
               />
             </div>
 
