@@ -1,55 +1,85 @@
 import { supabase } from '@/integrations/supabase/client';
 
+export function isPng(file?: { type?: string; name?: string } | null): boolean {
+  if (!file) return false;
+  const type = (file.type || '').toLowerCase();
+  const name = (file.name || '').toLowerCase();
+  return (
+    type === 'image/png' ||
+    type === 'image/x-png' ||
+    name.endsWith('.png')
+  );
+}
+
+export function isAcceptedImage(file?: { type?: string; name?: string } | null): boolean {
+  if (!file) return false;
+  const type = (file.type || '').toLowerCase();
+  const name = (file.name || '').toLowerCase();
+  if (type.startsWith('image/')) return true;
+  return /\.(png|jpe?g|webp|svg|gif|bmp|avif)$/i.test(name);
+}
+
 export async function compressImage(
   file: File,
   maxDimension = 1024,
   quality = 0.85,
 ): Promise<{ blob: Blob; width: number; height: number }> {
-  return new Promise((resolve, reject) => {
+  const isImagePng = isPng(file);
+  const targetMime = isImagePng ? 'image/png' : 'image/jpeg';
+
+  return new Promise((resolve) => {
+    // Safe fallback to original file if canvas/image reading fails
+    const fallback = () => {
+      resolve({ blob: file, width: 800, height: 800 });
+    };
+
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+    reader.onerror = fallback;
     reader.onload = () => {
       const img = new Image();
-      img.onerror = () => reject(new Error('Erro ao carregar imagem'));
+      img.onerror = fallback;
       img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Canvas indisponível'));
-          return;
-        }
-
-        // Draw with smoothing
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Preserve PNG transparency if source is PNG, otherwise jpeg/webp
-        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error('Erro na compressão'));
-              return;
+        try {
+          let { width, height } = img;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
             }
-            resolve({ blob, width, height });
-          },
-          mimeType,
-          quality,
-        );
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            fallback();
+            return;
+          }
+
+          // Draw with high smoothing
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Preserve PNG transparency without quality loss
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve({ blob, width, height });
+              } else {
+                fallback();
+              }
+            },
+            targetMime,
+            isImagePng ? undefined : quality,
+          );
+        } catch {
+          fallback();
+        }
       };
       img.src = reader.result as string;
     };
@@ -148,82 +178,130 @@ export async function uploadCompanyLogo(
   file: File,
   userId: string,
 ): Promise<{ path: string; url: string }> {
+  const isImagePng = isPng(file);
+  const ext = isImagePng ? 'png' : 'jpg';
+  const cleanMime = isImagePng
+    ? 'image/png'
+    : file.type && file.type.startsWith('image/')
+      ? file.type
+      : 'image/jpeg';
+
   const { blob } = await compressImage(file, 1024);
-  const ext = file.type === 'image/png' ? 'png' : 'jpg';
   const path = `${userId}/logo-${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('company-assets')
-    .upload(path, blob, {
-      contentType: file.type || 'image/png',
-      upsert: true,
-    });
+  try {
+    const { error: uploadError } = await supabase.storage
+      .from('company-assets')
+      .upload(path, blob, {
+        contentType: cleanMime,
+        upsert: true,
+      });
 
-  if (uploadError) {
-    console.warn('Storage upload warning:', uploadError.message);
-    // If storage bucket upload fails (e.g. offline/restricted), return a data URI for browser preview
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({ path, url: reader.result as string });
-      reader.readAsDataURL(blob);
-    });
+    if (uploadError) {
+      console.warn('Storage upload warning:', uploadError.message);
+      return {
+        path,
+        url: URL.createObjectURL(blob),
+      };
+    }
+
+    const { data: signData } = await supabase.storage
+      .from('company-assets')
+      .createSignedUrl(path, 60 * 60 * 24 * 365); // 1 year
+
+    const publicUrl = supabase.storage
+      .from('company-assets')
+      .getPublicUrl(path).data.publicUrl;
+
+    const finalUrl = signData?.signedUrl || publicUrl || URL.createObjectURL(blob);
+
+    return {
+      path,
+      url: finalUrl,
+    };
+  } catch (err) {
+    console.warn('Storage upload error:', err);
+    return {
+      path,
+      url: URL.createObjectURL(blob),
+    };
   }
-
-  // Get signed URL
-  const { data: signData } = await supabase.storage
-    .from('company-assets')
-    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 days
-
-  return {
-    path,
-    url: signData?.signedUrl || URL.createObjectURL(blob),
-  };
 }
 
 export async function uploadCompanyBanner(
   file: File,
   userId: string,
 ): Promise<{ path: string; url: string }> {
+  const isImagePng = isPng(file);
+  const ext = isImagePng ? 'png' : 'jpg';
+  const cleanMime = isImagePng
+    ? 'image/png'
+    : file.type && file.type.startsWith('image/')
+      ? file.type
+      : 'image/jpeg';
+
   const { blob } = await compressImage(file, 1600);
-  const ext = file.type === 'image/png' ? 'png' : 'jpg';
   const path = `${userId}/banner-${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('company-assets')
-    .upload(path, blob, {
-      contentType: file.type || 'image/jpeg',
-      upsert: true,
-    });
+  try {
+    const { error: uploadError } = await supabase.storage
+      .from('company-assets')
+      .upload(path, blob, {
+        contentType: cleanMime,
+        upsert: true,
+      });
 
-  if (uploadError) {
-    console.warn('Storage banner upload warning:', uploadError.message);
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({ path, url: reader.result as string });
-      reader.readAsDataURL(blob);
-    });
+    if (uploadError) {
+      console.warn('Storage banner upload warning:', uploadError.message);
+      return {
+        path,
+        url: URL.createObjectURL(blob),
+      };
+    }
+
+    const { data: signData } = await supabase.storage
+      .from('company-assets')
+      .createSignedUrl(path, 60 * 60 * 24 * 365);
+
+    const publicUrl = supabase.storage
+      .from('company-assets')
+      .getPublicUrl(path).data.publicUrl;
+
+    const finalUrl = signData?.signedUrl || publicUrl || URL.createObjectURL(blob);
+
+    return {
+      path,
+      url: finalUrl,
+    };
+  } catch (err) {
+    console.warn('Storage banner upload error:', err);
+    return {
+      path,
+      url: URL.createObjectURL(blob),
+    };
   }
-
-  const { data: signData } = await supabase.storage
-    .from('company-assets')
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
-
-  return {
-    path,
-    url: signData?.signedUrl || URL.createObjectURL(blob),
-  };
 }
 
 export async function getSignedAssetUrl(path: string): Promise<string> {
   if (!path) return '';
-  if (path.startsWith('http') || path.startsWith('data:')) return path;
+  if (
+    path.startsWith('http://') ||
+    path.startsWith('https://') ||
+    path.startsWith('data:') ||
+    path.startsWith('blob:')
+  ) {
+    return path;
+  }
 
   try {
     const { data } = await supabase.storage
       .from('company-assets')
-      .createSignedUrl(path, 60 * 60 * 24 * 7);
-    return data?.signedUrl || '';
+      .createSignedUrl(path, 60 * 60 * 24 * 365);
+    if (data?.signedUrl) return data.signedUrl;
+
+    const publicUrl = supabase.storage.from('company-assets').getPublicUrl(path).data.publicUrl;
+    return publicUrl || path;
   } catch {
-    return '';
+    return path;
   }
 }

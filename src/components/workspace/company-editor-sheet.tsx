@@ -32,6 +32,8 @@ import {
   uploadCompanyLogo,
   uploadCompanyBanner,
   compressImage,
+  getSignedAssetUrl,
+  isAcceptedImage,
 } from '@/lib/data/storage';
 import { LogoStudioModal } from '@/components/brand/LogoStudioModal';
 import { brandPacks } from '@/data/brand-packs';
@@ -154,8 +156,31 @@ export function CompanyEditorSheet() {
       setCategoria(company.categoria || 'Restaurante');
       setSlogan(company.slogan || '');
       setTemLogo(!!company.tem_logo);
-      setLogoPath(company.logo_path || null);
-      setBannerPath(company.banner_path || null);
+      if (company.logo_path) {
+        if (company.logo_path.startsWith('http') || company.logo_path.startsWith('data:') || company.logo_path.startsWith('blob:')) {
+          setLogoPath(company.logo_path);
+        } else {
+          setLogoPath(company.logo_path);
+          getSignedAssetUrl(company.logo_path).then((url) => {
+            if (url) setLogoPath(url);
+          });
+        }
+      } else {
+        setLogoPath(null);
+      }
+
+      if (company.banner_path) {
+        if (company.banner_path.startsWith('http') || company.banner_path.startsWith('data:') || company.banner_path.startsWith('blob:')) {
+          setBannerPath(company.banner_path);
+        } else {
+          setBannerPath(company.banner_path);
+          getSignedAssetUrl(company.banner_path).then((url) => {
+            if (url) setBannerPath(url);
+          });
+        }
+      } else {
+        setBannerPath(null);
+      }
       setCores(company.cores && company.cores.length ? company.cores : ['#EA1D2C', '#1A1A1A']);
 
       setWhatsapp(company.whatsapp ? formatWhatsApp(company.whatsapp) : '');
@@ -229,10 +254,16 @@ export function CompanyEditorSheet() {
   // Upload Logo
   const handleLogoUpload = async (file?: File) => {
     if (!file || !user?.id) return;
+
+    if (!isAcceptedImage(file)) {
+      toast.error('Envie uma imagem válida (PNG, JPG, WebP).');
+      return;
+    }
+
     try {
       toast.loading('Enviando logo...', { id: 'sheet-upload-logo' });
-      const { path } = await uploadCompanyLogo(file, user.id);
-      setLogoPath(path);
+      const { path, url } = await uploadCompanyLogo(file, user.id);
+      setLogoPath(url || path);
       setTemLogo(true);
       await saveMutation.mutateAsync({
         tem_logo: true,
@@ -247,10 +278,16 @@ export function CompanyEditorSheet() {
   // Upload Banner
   const handleBannerUpload = async (file?: File) => {
     if (!file || !user?.id) return;
+
+    if (!isAcceptedImage(file)) {
+      toast.error('Envie uma imagem válida (PNG, JPG, WebP).');
+      return;
+    }
+
     try {
       toast.loading('Enviando banner de capa...', { id: 'sheet-upload-banner' });
-      const { path } = await uploadCompanyBanner(file, user.id);
-      setBannerPath(path);
+      const { path, url } = await uploadCompanyBanner(file, user.id);
+      setBannerPath(url || path);
       await saveMutation.mutateAsync({
         banner_path: path,
       });
@@ -528,9 +565,13 @@ export function CompanyEditorSheet() {
                         {bannerPath ? 'Trocar banner' : 'Enviar banner de capa'}
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/*,.png,.jpg,.jpeg,.webp,.PNG,.JPG,.JPEG,.WEBP"
                           className="sr-only"
-                          onChange={(e) => handleBannerUpload(e.target.files?.[0])}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleBannerUpload(f);
+                            e.target.value = '';
+                          }}
                         />
                       </label>
                     </Button>
@@ -582,9 +623,13 @@ export function CompanyEditorSheet() {
                           Enviar arquivo
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,.png,.jpg,.jpeg,.webp,.PNG,.JPG,.JPEG,.WEBP"
                             className="sr-only"
-                            onChange={(e) => handleLogoUpload(e.target.files?.[0])}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleLogoUpload(f);
+                              e.target.value = '';
+                            }}
                           />
                         </label>
                       </Button>

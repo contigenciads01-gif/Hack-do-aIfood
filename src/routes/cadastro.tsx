@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 import { brandPacks } from '@/data/brand-packs';
 import { useAuth } from '@/lib/auth';
 import { useCompany, useSaveCompany, type Company } from '@/lib/data';
-import { extractDominantColors, uploadCompanyLogo } from '@/lib/data/storage';
+import { extractDominantColors, uploadCompanyLogo, isAcceptedImage } from '@/lib/data/storage';
 import { LogoHack } from '@/components/brand/LogoHack';
 import { LogoStudioModal } from '@/components/brand/LogoStudioModal';
 
@@ -171,13 +171,13 @@ function CadastroPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    if (!isAcceptedImage(file)) {
       toast.error('Envie uma imagem PNG, JPG ou WebP.');
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Arquivo muito grande. Máximo de 5 MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Máximo de 15 MB.');
       return;
     }
 
@@ -614,7 +614,7 @@ function CadastroPage() {
                     <span>{logoPreview ? 'Trocar arquivo' : 'Selecionar arquivo'}</span>
                     <input
                       type="file"
-                      accept="image/png,image/jpeg,image/webp"
+                      accept="image/*,.png,.jpg,.jpeg,.webp,.PNG,.JPG,.JPEG,.WEBP"
                       onChange={handleLogoFile}
                       className="sr-only"
                     />
