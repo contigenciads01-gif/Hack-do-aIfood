@@ -24,6 +24,7 @@ import { LogoHackAnimated, type LogoHackAnimatedHandle } from '@/components/bran
 import { AmbientLighting } from '@/components/login/AmbientLighting';
 import { PhoneHero } from '@/components/login/PhoneHero';
 import { ServicesSection } from '@/components/login/ServicesSection';
+import { SalesLandingSection } from '@/components/login/SalesLandingSection';
 import { SUPPORT_WHATSAPP } from '@/config';
 import {
   useAuth,
@@ -84,6 +85,33 @@ function LoginPage() {
   // Guard against duplicate concurrent submissions (double-clicks / double events)
   const isSubmittingRef = useRef(false);
   const logoAnimRef = useRef<LogoHackAnimatedHandle>(null);
+  const loginInputRef = useRef<HTMLInputElement>(null);
+  const cadastroInputRef = useRef<HTMLInputElement>(null);
+
+  // Floating top bar visibility state when user scrolls past the hero
+  const [scrolledPastHero, setScrolledPastHero] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolledPastHero(window.scrollY > 340);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToForm = (novoModo?: 'login' | 'cadastro') => {
+    if (novoModo) {
+      setModo(novoModo);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      if (novoModo === 'cadastro') {
+        cadastroInputRef.current?.focus();
+      } else {
+        loginInputRef.current?.focus();
+      }
+    }, 450);
+  };
 
   // Username validation state for registration
   const [usernameCheck, setUsernameCheck] = useState<{
@@ -338,7 +366,44 @@ function LoginPage() {
   const isFormBlocked = loading || lockStatus.isLocked || rateLimitStatus.isLimited;
 
   return (
-    <div className="relative min-h-svh w-full bg-[#060606] font-sans text-white overflow-x-hidden flex flex-col justify-between">
+    <div className="relative min-h-svh w-full bg-[#060606] font-sans text-white overflow-x-hidden">
+      {/* Barra de Ação Flutuante Fixa no Topo (Garante acesso ao formulário em qualquer rolagem) */}
+      <header
+        aria-label="Acesso rápido ao login"
+        className={`fixed top-0 inset-x-0 z-50 bg-[#060606]/92 backdrop-blur-xl border-b border-white/10 px-4 py-2.5 sm:px-8 shadow-2xl transition-all duration-300 ${
+          scrolledPastHero
+            ? 'opacity-100 translate-y-0 pointer-events-auto'
+            : 'opacity-0 -translate-y-full pointer-events-none'
+        }`}
+      >
+        <div className="max-w-[1720px] mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <LogoHackAnimated className="h-7 sm:h-8 w-auto" />
+            <span className="hidden md:inline-block text-xs font-bold text-zinc-300 border-l border-white/15 pl-3">
+              Pra quem não espera sorte, só oportunidade.
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => scrollToForm('login')}
+              className="px-3.5 py-1.5 rounded-xl border border-white/15 bg-white/5 text-xs font-bold text-white hover:bg-white/10 hover:border-white/25 transition-all cursor-pointer"
+            >
+              Entrar
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToForm('cadastro')}
+              className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#EA1D2C] to-[#E31020] text-xs font-black text-white hover:brightness-110 shadow-lg shadow-[#EA1D2C]/30 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Criar conta</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
       {/* Background Cinematográfico da Referência: mesa de ardósia, burger suculento e laptop ao fundo */}
       <img
         src={cinematicBg}
@@ -353,17 +418,24 @@ function LoginPage() {
       {/* Luzes Vermelhas Desfocadas, LEDs e Reflexos Animados */}
       <AmbientLighting />
 
-      {/* Main Content Area */}
-      <div className="relative z-10 flex-1 flex flex-col justify-between px-6 py-6 sm:px-10 lg:px-12 xl:px-16 max-w-[1720px] w-full mx-auto">
-        <div className="my-auto flex flex-col lg:grid lg:grid-cols-[380px_minmax(360px,460px)_1fr] lg:gap-10 xl:gap-16 items-center">
+      {/* PRIMEIRA DOBRA (Above the fold): Card de Login 100% visível e funcional */}
+      <div className="relative z-10 min-h-svh flex flex-col justify-between px-6 py-6 sm:px-10 lg:px-12 xl:px-16 max-w-[1720px] w-full mx-auto">
+        <div className="my-auto lg:pt-8 flex flex-col lg:grid lg:grid-cols-[380px_minmax(360px,460px)_1fr] lg:gap-10 xl:gap-16 items-center">
           {/* Coluna 1: Esquerda (380px no desktop) */}
           <div className="w-full lg:w-[380px] lg:shrink-0 flex flex-col relative z-20">
             {/* Logo Original (Vetor SVG puro com Micro-interação disparada no login) */}
             <div className="flex items-center">
               <LogoHackAnimated
                 ref={logoAnimRef}
-                className="h-14 sm:h-16 w-auto drop-shadow-[0_4px_16px_rgba(234,29,44,0.3)] animate-fade-in-up"
+                className="h-12 sm:h-14 w-auto drop-shadow-[0_4px_16px_rgba(234,29,44,0.3)] animate-fade-in-up"
               />
+            </div>
+
+            {/* Headline Curta de Efeito acima do Formulário */}
+            <div className="mt-4 mb-2 animate-fade-in-up">
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug">
+                Pra quem não espera sorte, só oportunidade.
+              </h1>
             </div>
 
           {/* Rate-limit warning banner */}
@@ -496,6 +568,7 @@ function LoginPage() {
                   <span className="flex w-full flex-col">
                     <span className="text-[11px] font-medium text-white/50">E-mail ou Usuário</span>
                     <input
+                      ref={loginInputRef}
                       type="text"
                       value={usuario}
                       onChange={(e) => setUsuario(e.target.value)}
@@ -593,7 +666,7 @@ function LoginPage() {
 
                 {/* Badge 7 dias grátis */}
                 <div className="flex items-center justify-center pt-0.5">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+                  <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
                     <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
                     7 dias grátis para testar todos os recursos
                   </span>
@@ -620,6 +693,7 @@ function LoginPage() {
                   <span className="flex w-full flex-col">
                     <span className="text-xs font-medium text-white/60">Seu e-mail corporativo / pessoal</span>
                     <input
+                      ref={cadastroInputRef}
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -827,8 +901,18 @@ function LoginPage() {
         )}
       </div>
 
+        {/* Indicador sutil de rolagem no desktop */}
+        <div className="hidden lg:flex items-center justify-center py-2 text-white/30 text-xs gap-1.5 select-none">
+          <span>Role para saber mais sobre o Hack do iFood</span>
+          <span className="animate-bounce text-[#EA1D2C]">↓</span>
+        </div>
+      </div>
+
+      {/* SEÇÃO DA PÁGINA DE VENDAS (Abaixo da primeira dobra) */}
+      <SalesLandingSection onScrollToTop={scrollToForm} />
+
       {/* RODAPÉ DUPLO: Afiliado à esquerda, "Juntos vamos mais longe ✦" à direita */}
-      <footer className="mt-8 pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/45">
+      <footer className="relative z-10 w-full px-6 py-6 sm:px-10 lg:px-12 xl:px-16 max-w-[1720px] mx-auto border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/45">
         <div className="flex items-center gap-2 text-center sm:text-left">
           <span>Hack do aiFood não é afiliado ao iFood.</span>
         </div>
@@ -840,6 +924,5 @@ function LoginPage() {
         </div>
       </footer>
     </div>
-  </div>
-);
+  );
 }

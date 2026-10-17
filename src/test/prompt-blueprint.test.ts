@@ -180,36 +180,36 @@ describe('Agente Guias & Usabilidade', () => {
   });
 
   it('anuncio_instagram has exactly 3 steps with 8 styles containing fraseExemplo and condicao', () => {
-    const fluxo = AGENTE_FLUXOS['anuncio_instagram'];
+    const fluxo = AGENTE_FLUXOS['anuncio_instagram']!;
     expect(fluxo).toBeDefined();
     expect(fluxo.passos.length).toBe(3);
 
     const [passoPrato, passoEstilo, passoOferta] = fluxo.passos;
-    expect(passoPrato.id).toBe('prato');
-    expect(passoPrato.tipo).toBe('prato');
+    expect(passoPrato!.id).toBe('prato');
+    expect(passoPrato!.tipo).toBe('prato');
 
-    expect(passoEstilo.id).toBe('estilo_anuncio');
-    expect(passoEstilo.opcoes?.length).toBe(8);
+    expect(passoEstilo!.id).toBe('estilo_anuncio');
+    expect(passoEstilo!.opcoes?.length).toBe(8);
 
     // Each style has fraseExemplo and isPromocional defined
-    passoEstilo.opcoes?.forEach((opt: any) => {
+    passoEstilo!.opcoes?.forEach((opt: any) => {
       expect(opt.fraseExemplo).toBeTruthy();
       expect(typeof opt.isPromocional).toBe('boolean');
     });
 
     // passoOferta has condicao that evaluates true only for promotional styles
-    expect(passoOferta.id).toBe('oferta');
-    expect(typeof passoOferta.condicao).toBe('function');
+    expect(passoOferta!.id).toBe('oferta');
+    expect(typeof passoOferta!.condicao).toBe('function');
 
-    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'promocao_preco' })).toBe(true);
-    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'combo_almoco' })).toBe(true);
-    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'urgencia_unidades' })).toBe(true);
+    expect(passoOferta!.condicao?.({ estilo_anuncio_id: 'promocao_preco' })).toBe(true);
+    expect(passoOferta!.condicao?.({ estilo_anuncio_id: 'combo_almoco' })).toBe(true);
+    expect(passoOferta!.condicao?.({ estilo_anuncio_id: 'urgencia_unidades' })).toBe(true);
 
-    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'apetite' })).toBe(false);
-    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'bastidores' })).toBe(false);
-    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'fim_de_semana' })).toBe(false);
-    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'novidade' })).toBe(false);
-    expect(passoOferta.condicao?.({ estilo_anuncio_id: 'prova_social' })).toBe(false);
+    expect(passoOferta!.condicao?.({ estilo_anuncio_id: 'apetite' })).toBe(false);
+    expect(passoOferta!.condicao?.({ estilo_anuncio_id: 'bastidores' })).toBe(false);
+    expect(passoOferta!.condicao?.({ estilo_anuncio_id: 'fim_de_semana' })).toBe(false);
+    expect(passoOferta!.condicao?.({ estilo_anuncio_id: 'novidade' })).toBe(false);
+    expect(passoOferta!.condicao?.({ estilo_anuncio_id: 'prova_social' })).toBe(false);
   });
 
   it('incorporates company schedule, channels, dish price and ingredients with 0 unresolved {{ placeholders', () => {
