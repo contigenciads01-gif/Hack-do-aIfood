@@ -68,9 +68,9 @@ describe('Editor Livre de Anúncios - Regras de Negócio e Rascunhos', () => {
       expect(adDraft.preco).toBe(39.9);
       expect(adDraft.mostrar_preco).toBe(true);
       expect(adDraft.frases).toHaveLength(3);
-      expect(adDraft.frases![0].texto).toBe('Carne 100% Angus 180g');
-      expect(adDraft.frases![1].texto).toBe('Queijo cheddar derretido maçaricado');
-      expect(adDraft.frases![2].texto).toBe('Pão brioche selado na manteiga');
+      expect(adDraft.frases?.[0]?.texto).toBe('Carne 100% Angus 180g');
+      expect(adDraft.frases?.[1]?.texto).toBe('Queijo cheddar derretido maçaricado');
+      expect(adDraft.frases?.[2]?.texto).toBe('Pão brioche selado na manteiga');
       expect(adDraft.logo_posicao).toBe('bottom-left');
       expect(adDraft.mostrar_logo).toBe(true);
     });
@@ -86,13 +86,15 @@ describe('Editor Livre de Anúncios - Regras de Negócio e Rascunhos', () => {
       expect(frases).toHaveLength(3);
 
       // Reordenar: subir a frase 2
-      const [item0, item1, item2] = frases;
+      const item0 = frases[0]!;
+      const item1 = frases[1]!;
+      const item2 = frases[2]!;
       const reordenado = [item1, item0, item2];
-      expect(reordenado[0].texto).toBe('Frase 2');
-      expect(reordenado[1].texto).toBe('Frase 1');
+      expect(reordenado[0]?.texto).toBe('Frase 2');
+      expect(reordenado[1]?.texto).toBe('Frase 1');
 
       // Remover frase 3
-      const filtrado = reordenado.filter((f) => f.id !== '3');
+      const filtrado = reordenado.filter((f) => f && f.id !== '3');
       expect(filtrado).toHaveLength(2);
       expect(filtrado.map((f) => f.id)).toEqual(['2', '1']);
     });
@@ -190,13 +192,13 @@ describe('Editor Livre de Anúncios - Regras de Negócio e Rascunhos', () => {
 
       const adsForUserA = getAdsForUser(userA);
       expect(adsForUserA).toHaveLength(1);
-      expect(adsForUserA[0].id).toBe('ad-user-a');
-      expect(adsForUserA[0].titulo).toBe('Anúncio do Usuário A');
+      expect(adsForUserA[0]?.id).toBe('ad-user-a');
+      expect(adsForUserA[0]?.titulo).toBe('Anúncio do Usuário A');
 
       // Usuário B não vê o do Usuário A
       const adsForUserB = getAdsForUser(userB);
       expect(adsForUserB).toHaveLength(1);
-      expect(adsForUserB[0].id).toBe('ad-user-b');
+      expect(adsForUserB[0]?.id).toBe('ad-user-b');
       expect(adsForUserB.find((ad) => ad.id === 'ad-user-a')).toBeUndefined();
     });
   });
@@ -208,6 +210,60 @@ describe('Editor Livre de Anúncios - Regras de Negócio e Rascunhos', () => {
 
       formato = '1:1';
       expect(formato).toBe('1:1');
+    });
+  });
+
+  describe('7. Motor de Metaprompt e Comando de Forçar Imagem no ChatGPT', () => {
+    it('gera o System Prompt calibrado com a marca e o comando que força o ChatGPT a gerar a imagem', async () => {
+      const { buildAdImageMetaprompt } = await import('@/lib/build-ad-metaprompt');
+
+      const res = buildAdImageMetaprompt({
+        formato: '9:16',
+        pratoNome: 'Smash Supremo Especial',
+        pratoIngredientes: ['Carne Angus', 'Queijo Cheddar', 'Pão Brioche'],
+        titulo: 'O Sabor que Conquista no Primeiro Pedaço',
+        preco: 39.9,
+        mostrarPreco: true,
+        frases: [
+          { id: '1', texto: 'Carne 100% Angus 180g' },
+          { id: '2', texto: 'Queijo cheddar derretido maçaricado' },
+        ],
+        logoPosicao: 'bottom-left',
+        mostrarLogo: true,
+        company: {
+          nome: 'Burger da Esquina',
+          categoria: 'Hamburgueria Artesanal',
+          cidade: 'São Paulo - SP',
+          cores: ['#EA1D2C', '#1A1A1A'],
+        },
+      });
+
+      // 1. Instruções de Sistema (System Prompt)
+      expect(res.sistema).toContain('<instrucoes_de_sistema>');
+      expect(res.sistema).toContain('<papel>');
+      expect(res.sistema).toContain('Burger da Esquina');
+      expect(res.sistema).toContain('Hamburgueria Artesanal');
+      expect(res.sistema).toContain('#EA1D2C');
+
+      // 2. Pedido da Tarefa com variáveis selecionadas
+      expect(res.pedido).toContain('<pedido_da_tarefa>');
+      expect(res.pedido).toContain('Smash Supremo Especial');
+      expect(res.pedido).toContain('Vertical 9:16');
+      expect(res.pedido).toContain('O Sabor que Conquista no Primeiro Pedaço');
+      expect(res.pedido).toContain('39,90');
+      expect(res.pedido).toContain('inferior esquerdo');
+
+      // 3. Comando obrigatório que FORÇA o ChatGPT a fazer a imagem
+      expect(res.comandoImagem).toContain('<comando_obrigatorio_geracao_de_imagem>');
+      expect(res.comandoImagem).toContain('ATENÇÃO CHATGPT: ESTA É UMA INSTRUÇÃO FINAL E OBRIGATÓRIA');
+      expect(res.comandoImagem).toContain('NÃO RESPONDA APENAS COM TEXTO');
+      expect(res.comandoImagem).toContain('DALL-E 3');
+      expect(res.comandoImagem).toContain('Gere e envie a imagem publicitária final imediatamente');
+
+      // 4. Prompt Completo
+      expect(res.completo).toContain(res.sistema);
+      expect(res.completo).toContain(res.pedido);
+      expect(res.completo).toContain(res.comandoImagem);
     });
   });
 });
