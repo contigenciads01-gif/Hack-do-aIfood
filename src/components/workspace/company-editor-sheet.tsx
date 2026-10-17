@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -140,9 +140,16 @@ export function CompanyEditorSheet() {
   const [customDiferencial, setCustomDiferencial] = useState('');
   const [savingNegocio, setSavingNegocio] = useState(false);
 
-  // Sync state whenever company is fetched or modal opens
+  // Sync state whenever modal opens or when company loads for first time
+  const prevOpenRef = useRef(false);
+  const loadedOnceRef = useRef(false);
+
   useEffect(() => {
-    if (company && open) {
+    const isOpening = !prevOpenRef.current && open;
+    const isInitialLoad = open && company && !loadedOnceRef.current;
+
+    if (company && (isOpening || isInitialLoad)) {
+      loadedOnceRef.current = true;
       setNome(company.nome || '');
       setCategoria(company.categoria || 'Restaurante');
       setSlogan(company.slogan || '');
@@ -184,6 +191,11 @@ export function CompanyEditorSheet() {
       }
 
       setDiferenciais(Array.isArray(company.diferenciais) ? company.diferenciais : []);
+    }
+
+    prevOpenRef.current = open;
+    if (!open) {
+      loadedOnceRef.current = false;
     }
   }, [company, open]);
 
@@ -302,7 +314,7 @@ export function CompanyEditorSheet() {
 
     setSavingIdentidade(true);
     try {
-      await saveMutation.mutateAsync({
+      const saved = await saveMutation.mutateAsync({
         nome: nome.trim(),
         slogan: slogan.trim() || null,
         categoria: categoria || company?.categoria || 'Restaurante',
@@ -311,6 +323,8 @@ export function CompanyEditorSheet() {
         banner_path: bannerPath || null,
         cores,
       });
+      if (saved?.nome) setNome(saved.nome);
+      if (saved?.slogan !== undefined) setSlogan(saved.slogan || '');
       toast.success('Identidade da empresa salva com sucesso!');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao salvar identidade.');
