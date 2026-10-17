@@ -22,6 +22,7 @@ import { FotoStudio } from '@/components/workspace/foto-studio';
 import { PlusUpgradeModal } from '@/components/workspace/plus-upgrade-modal';
 import { AgenteCard } from '@/components/workspace/agente-card';
 import { FloatingGlassBackground } from '@/components/workspace/floating-glass-background';
+import { AdEditorModal } from '@/components/workspace/ad-editor/AdEditorModal';
 import { useCompany, isCompanyPlus } from '@/lib/data/company';
 import { usePratos, type Prato } from '@/lib/data/pratos';
 import { useMaterials } from '@/lib/data/materials';
@@ -53,6 +54,7 @@ export function AgenteWorkspace({ initialCard }: AgenteWorkspaceProps = {}) {
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showFotoStudio, setShowFotoStudio] = useState(false);
+  const [showAdEditor, setShowAdEditor] = useState(false);
 
   // Sync with search parameter `?card=id`
   useEffect(() => {
@@ -60,6 +62,8 @@ export function AgenteWorkspace({ initialCard }: AgenteWorkspaceProps = {}) {
     if (targetCard) {
       if (targetCard === 'fotos_pratos' || targetCard === 'foto') {
         setShowFotoStudio(true);
+      } else if (targetCard === 'anuncio_instagram') {
+        setShowAdEditor(true);
       } else if (AGENTE_FLUXOS[targetCard]) {
         setActiveCard(targetCard);
       }
@@ -128,6 +132,8 @@ export function AgenteWorkspace({ initialCard }: AgenteWorkspaceProps = {}) {
 
     if (card.id === 'fotos_pratos') {
       setShowFotoStudio(true);
+    } else if (card.id === 'anuncio_instagram') {
+      setShowAdEditor(true);
     } else {
       setActiveCard(card.id);
     }
@@ -298,6 +304,12 @@ export function AgenteWorkspace({ initialCard }: AgenteWorkspaceProps = {}) {
       <PlusUpgradeModal
         open={showUpgradeModal}
         onOpenChange={setShowUpgradeModal}
+      />
+
+      {/* 4. Editor Livre de Anúncios */}
+      <AdEditorModal
+        open={showAdEditor}
+        onOpenChange={setShowAdEditor}
       />
     </main>
   );

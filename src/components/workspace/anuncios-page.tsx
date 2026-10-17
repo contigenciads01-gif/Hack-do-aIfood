@@ -21,6 +21,7 @@ import { buildMetaprompt } from '@/lib/metaprompt';
 import { PlusUpgradeModal } from './plus-upgrade-modal';
 import { ToolPage } from './pages';
 import { openCompanyEditor } from '@/lib/company-editor-state';
+import { AdEditorModal } from './ad-editor/AdEditorModal';
 
 export function AnunciosPage() {
   const { user } = useAuth();
@@ -41,6 +42,7 @@ export function AnunciosPage() {
   const [promptGerado, setPromptGerado] = useState('');
   const [copiado, setCopiado] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showAdEditorModal, setShowAdEditorModal] = useState(false);
 
   // Missing fields checking
   const missingCompanyFields: string[] = [];
@@ -201,6 +203,29 @@ export function AnunciosPage() {
           </div>
         </div>
       )}
+
+      {/* Banner de Acesso Rápido ao Editor Livre de Anúncios */}
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-[#EA1D2C]/40 bg-gradient-to-r from-[#EA1D2C]/20 via-[#EA1D2C]/10 to-black/40 p-5 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EA1D2C] px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-white">
+            <Sparkles className="h-3 w-3" /> NOVO RECURSO
+          </span>
+          <h3 className="mt-2 text-lg font-black text-white">
+            Editor Livre de Anúncios com Preview e Exportação PNG
+          </h3>
+          <p className="mt-0.5 text-xs text-white/70">
+            Crie anúncios totalmente personalizados com presets opcionais, blocos livres de frases, logo no canto e exportação direta 9:16 ou 1:1.
+          </p>
+        </div>
+        <Button
+          type="button"
+          onClick={() => setShowAdEditorModal(true)}
+          className="shrink-0 rounded-xl bg-[#EA1D2C] px-5 py-3 font-bold text-white shadow-md shadow-[#EA1D2C]/30 hover:bg-[#ff3b4b]"
+        >
+          <Sparkles className="mr-2 h-4 w-4" />
+          Abrir Editor Livre
+        </Button>
+      </div>
 
       <div className="tool-grid">
         {/* Formulário de Configuração do Anúncio */}
@@ -377,6 +402,7 @@ export function AnunciosPage() {
           )}
         </section>
       </div>
+      <AdEditorModal open={showAdEditorModal} onOpenChange={setShowAdEditorModal} />
     </ToolPage>
   );
 }
