@@ -434,8 +434,11 @@ function LoginPage() {
             {/* Headline Curta de Efeito acima do Formulário */}
             <div className="mt-4 mb-2 animate-fade-in-up">
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug">
-                Pra quem não espera sorte, só oportunidade.
+                Seu prato não vende menos por causa do preço.
               </h1>
+              <p className="mt-1.5 text-xs sm:text-sm text-zinc-300 font-medium leading-relaxed">
+                Vende menos por causa da primeira coisa que o cliente vê — e isso dá pra resolver hoje, não em seis meses.
+              </p>
             </div>
 
           {/* Rate-limit warning banner */}
