@@ -56,9 +56,13 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { user, loading: authLoading, logout } = useAuth();
   const { data: company, isLoading: isCompanyLoading } = useCompany();
-  const { access, subscription } = useSubscription();
+  const { access, subscription, isAdmin } = useSubscription();
   const { isCompleted: tutorialCompleted } = useTutorialProgress();
-  const isPlus = isCompanyPlus(company);
+  const isPlus =
+    isAdmin ||
+    access.plano === 'chef_master' ||
+    (typeof access.plano === 'string' && access.plano.includes('master')) ||
+    isCompanyPlus(company, user?.email);
 
   const [menu, setMenu] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);

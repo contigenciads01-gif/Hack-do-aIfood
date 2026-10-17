@@ -15,14 +15,22 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useCompany, isCompanyPlus } from '@/lib/data/company';
+import { useAuth } from '@/lib/auth';
+import { useSubscription } from '@/lib/subscription';
 import { buildMetaprompt } from '@/lib/metaprompt';
 import { PlusUpgradeModal } from './plus-upgrade-modal';
 import { ToolPage } from './pages';
 import { openCompanyEditor } from '@/lib/company-editor-state';
 
 export function AnunciosPage() {
+  const { user } = useAuth();
+  const { access, isAdmin } = useSubscription();
   const { data: company, isLoading } = useCompany();
-  const isPlus = isCompanyPlus(company);
+  const isPlus =
+    isAdmin ||
+    access.plano === 'chef_master' ||
+    (typeof access.plano === 'string' && access.plano.includes('master')) ||
+    isCompanyPlus(company, user?.email);
 
   const [formato, setFormato] = useState<'T_STORY' | 'T_CARROSSEL'>('T_STORY');
   const [objetivo, setObjetivo] = useState('Promoção relâmpago');

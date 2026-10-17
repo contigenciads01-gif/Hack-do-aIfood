@@ -7,6 +7,9 @@ import {
   getTrimestralMonthlyPriceFormatted,
   getTrimestralSavingsFormatted,
   getWhatsAppSubscribeUrl,
+  calculateProrataUpgrade,
+  isToolAllowed,
+  isUserAdminEmail,
 } from '@/config/plans';
 
 describe('Subscription access and expiration logic', () => {
@@ -145,5 +148,68 @@ describe('Plan pricing and savings calculations', () => {
     expect(url).toContain('wa.me');
     expect(url).toContain(encodeURIComponent('Trimestral'));
     expect(url).toContain(encodeURIComponent('Burger do Cheff'));
+  });
+
+  it('configures the new 3-tier matrix: Primeiros Passos, Chef, Chef Master', () => {
+    // Primeiros Passos
+    expect(PLANS.primeiros_passos.price).toBe(14.9);
+    expect(PLANS.primeiros_passos_trimestral.price).toBe(34.9);
+    expect(PLANS.primeiros_passos_trimestral.monthlyEquivalent).toBeCloseTo(11.63, 2);
+
+    // Chef
+    expect(PLANS.chef.price).toBe(29.9);
+    expect(PLANS.chef_trimestral.price).toBe(79.9);
+    expect(PLANS.chef_anual.price).toBe(269.9);
+    expect(PLANS.chef_anual.monthlyEquivalent).toBeCloseTo(22.49, 2);
+
+    // Chef Master
+    expect(PLANS.chef_master.price).toBe(49.9);
+    expect(PLANS.chef_master_trimestral.price).toBe(134.9);
+    expect(PLANS.chef_master_anual.price).toBe(449.9);
+    expect(PLANS.chef_master_anual.monthlyEquivalent).toBeCloseTo(37.49, 2);
+  });
+
+  it('calculates Pró-Rata upgrade fairly: Chef (R$29.90) to Chef Master (R$49.90) with 20 days remaining', () => {
+    // 20 days remaining out of 30 days
+    // Credit: (29.90 / 30) * 20 = 19.93
+    // Cost: (49.90 / 30) * 20 = 33.27
+    // Difference: 33.27 - 19.93 = 13.34 (or ~13.33)
+    const { credit, cost, difference, formattedDifference } = calculateProrataUpgrade({
+      currentPrice: 29.9,
+      newPrice: 49.9,
+      cycleDays: 30,
+      daysRemaining: 20,
+    });
+
+    expect(credit).toBeCloseTo(19.93, 1);
+    expect(cost).toBeCloseTo(33.27, 1);
+    expect(difference).toBeCloseTo(13.33, 1);
+    expect(formattedDifference).toContain('13,');
+  });
+
+  it('enforces tool permissions according to plan tier', () => {
+    // Chef Master has all tools
+    expect(isToolAllowed('anuncio_instagram', 'chef_master')).toBe(true);
+    expect(isToolAllowed('imagem_prato', 'chef_master')).toBe(true);
+
+    // Chef has all except anuncio_instagram
+    expect(isToolAllowed('anuncio_instagram', 'chef')).toBe(false);
+    expect(isToolAllowed('imagem_prato', 'chef')).toBe(true);
+    expect(isToolAllowed('promocao_preco', 'chef')).toBe(true);
+
+    // Primeiros Passos only has essential tools
+    expect(isToolAllowed('anuncio_instagram', 'primeiros_passos')).toBe(false);
+    expect(isToolAllowed('promocao_preco', 'primeiros_passos')).toBe(false);
+    expect(isToolAllowed('imagem_prato', 'primeiros_passos')).toBe(true);
+    expect(isToolAllowed('descricao_ifood', 'primeiros_passos')).toBe(true);
+
+    // Admin has all tools regardless of plan
+    expect(isToolAllowed('anuncio_instagram', 'primeiros_passos', true)).toBe(true);
+  });
+
+  it('recognizes thiago2005rodrigues@gmail.com as superadmin', () => {
+    expect(isUserAdminEmail('thiago2005rodrigues@gmail.com')).toBe(true);
+    expect(isUserAdminEmail('THIAGO2005RODRIGUES@GMAIL.COM')).toBe(true);
+    expect(isUserAdminEmail('outro@restaurante.com')).toBe(false);
   });
 });

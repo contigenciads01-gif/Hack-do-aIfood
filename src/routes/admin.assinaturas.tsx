@@ -32,7 +32,7 @@ export function AdminAssinaturasPage() {
   const { isAdmin, isLoading: loadingAdmin, refetch: refetchUserSub } = useSubscription();
 
   const [targetUserId, setTargetUserId] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState<PlanId>('mensal');
+  const [selectedPlan, setSelectedPlan] = useState<PlanId>('chef_master');
   const [updating, setUpdating] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -173,9 +173,15 @@ export function AdminAssinaturasPage() {
               onChange={(e) => setSelectedPlan(e.target.value as PlanId)}
               className="mt-1 w-full rounded-xl border border-white/15 bg-[#181818] px-4 py-3 text-sm text-white focus:border-[#EA1D2C] focus:outline-none"
             >
+              <option value="chef_master">Chef Master (Acesso Total - R$ 49,90/mês)</option>
+              <option value="chef_master_anual">Chef Master Anual (R$ 449,90/ano)</option>
+              <option value="chef_master_trimestral">Chef Master Trimestral (R$ 134,90)</option>
+              <option value="chef">Chef (R$ 29,90/mês)</option>
+              <option value="chef_trimestral">Chef Trimestral (R$ 79,90)</option>
+              <option value="chef_anual">Chef Anual (R$ 269,90/ano)</option>
+              <option value="primeiros_passos">Primeiros Passos (R$ 14,90/mês)</option>
+              <option value="primeiros_passos_trimestral">Primeiros Passos Trimestral (R$ 34,90)</option>
               <option value="experimental">Experimental (7 dias)</option>
-              <option value="mensal">Mensal (30 dias)</option>
-              <option value="trimestral">Trimestral (90 dias)</option>
             </select>
           </div>
 

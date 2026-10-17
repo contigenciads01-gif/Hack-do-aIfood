@@ -25,6 +25,8 @@ import { FloatingGlassBackground } from '@/components/workspace/floating-glass-b
 import { useCompany, isCompanyPlus } from '@/lib/data/company';
 import { usePratos, type Prato } from '@/lib/data/pratos';
 import { useMaterials } from '@/lib/data/materials';
+import { useAuth } from '@/lib/auth';
+import { useSubscription } from '@/lib/subscription';
 import { AGENTE_FLUXOS } from '@/data/agente-fluxos';
 
 interface AgenteWorkspaceProps {
@@ -37,10 +39,16 @@ export function AgenteWorkspace({ initialCard }: AgenteWorkspaceProps = {}) {
     select: (s) => (s.location.search as Record<string, string | undefined>) || {},
   });
 
+  const { user } = useAuth();
+  const { access, isAdmin } = useSubscription();
   const { data: company } = useCompany();
   const { data: pratos = [] } = usePratos();
   const { data: materials = [] } = useMaterials();
-  const isPlus = isCompanyPlus(company);
+  const isPlus =
+    isAdmin ||
+    access.plano === 'chef_master' ||
+    (typeof access.plano === 'string' && access.plano.includes('master')) ||
+    isCompanyPlus(company, user?.email);
 
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);

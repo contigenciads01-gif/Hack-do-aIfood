@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { PLANS, type PlanId } from '@/config/plans';
+import { PLANS, type PlanId, isUserAdminEmail } from '@/config/plans';
 
 export interface SubscriptionRecord {
   id?: string;
@@ -125,7 +125,9 @@ export function useSubscription() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: isAdmin = false } = useQuery({
+  const isSuperAdminEmail = isUserAdminEmail(user?.email);
+
+  const { data: dbAdminRole = false } = useQuery({
     queryKey: ['user_role_admin', user?.id],
     queryFn: async () => {
       if (!user?.id) return false;
@@ -137,7 +139,6 @@ export function useSubscription() {
         .maybeSingle();
 
       if (error) {
-        // Table or row may not exist in mock/offline mode
         return false;
       }
       return !!data;
@@ -146,14 +147,51 @@ export function useSubscription() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const isAdmin = isSuperAdminEmail || dbAdminRole;
+
   const {
     data: subscription,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['user_subscription', user?.id],
+    queryKey: ['user_subscription', user?.id, user?.email],
     queryFn: async (): Promise<SubscriptionRecord | null> => {
       if (!user?.id) return null;
+
+      // SuperAdmin override: grant Chef Master plan with 10 years access immediately
+      if (isSuperAdminEmail) {
+        const now = new Date();
+        const tenYearsLater = new Date(now.getTime() + 3650 * 24 * 60 * 60 * 1000);
+
+        // Attempt background persistence to Supabase
+        (async () => {
+          try {
+            await (supabase as any).from('subscriptions').upsert({
+              user_id: user.id,
+              plano: 'chef_master',
+              status: 'ativo',
+              inicio: now.toISOString(),
+              fim: tenYearsLater.toISOString(),
+              origem: 'manual',
+            });
+            await (supabase as any).from('user_roles').upsert({
+              user_id: user.id,
+              role: 'admin',
+            });
+          } catch {
+            // silent ignore in offline/sandbox
+          }
+        })();
+
+        return {
+          plano: 'chef_master' as PlanId,
+          status: 'ativo' as const,
+          inicio: now.toISOString(),
+          fim: tenYearsLater.toISOString(),
+          origem: 'manual' as const,
+        };
+      }
+
       const { data, error } = await (supabase as any)
         .from('subscriptions')
         .select('*')
@@ -164,7 +202,6 @@ export function useSubscription() {
 
       if (error) {
         console.warn('Error fetching subscription:', error);
-        // Fallback: if table does not exist or network fails, provide 7-day trial locally
         return {
           plano: 'experimental' as PlanId,
           status: 'ativo' as const,

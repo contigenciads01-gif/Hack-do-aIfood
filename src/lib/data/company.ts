@@ -48,15 +48,24 @@ export interface Company {
   updated_at?: string | undefined;
 }
 
-export function isCompanyPlus(company: Company | null | undefined): boolean {
+import { isUserAdminEmail } from '@/config/plans';
+
+export function isCompanyPlus(company: Company | null | undefined, userEmail?: string | null): boolean {
+  if (userEmail && isUserAdminEmail(userEmail)) return true;
   if (!company) return false;
-  return company.plano === 'plus' || (company.nivel ?? 1) >= 2;
+  return (
+    company.plano === 'plus' ||
+    company.plano === 'chef_master' ||
+    company.plano === 'chef' ||
+    (company.nivel ?? 1) >= 2
+  );
 }
 
 const LOCAL_COMPANY_KEY = 'hdi_company_profile';
 
 export function useCompany() {
   const { user } = useAuth();
+  const isSuper = isUserAdminEmail(user?.email);
 
   return useQuery({
     queryKey: ['company', user?.id],
