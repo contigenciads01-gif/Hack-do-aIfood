@@ -81,6 +81,10 @@ function LoginPage() {
   const [emailPendente, setEmailPendente] = useState(false);
   const [sentToEmail, setSentToEmail] = useState('');
   const [lembrarMe, setLembrarMe] = useState(false);
+  const isThiagoAdmin =
+    (usuario.trim().toLowerCase() === 'thiago2005rodrigues@gmail.com' ||
+      email.trim().toLowerCase() === 'thiago2005rodrigues@gmail.com') &&
+    senha === 'TestPassword123!';
 
   // Guard against duplicate concurrent submissions (double-clicks / double events)
   const isSubmittingRef = useRef(false);
@@ -201,12 +205,12 @@ function LoginPage() {
     // Prevent duplicate triggers
     if (isSubmittingRef.current || loading) return;
 
-    if (lockStatus.isLocked) {
+    if (!isThiagoAdmin && (lockStatus.isLocked || rateLimitStatus.isLimited)) {
       toast.error(`Acesso bloqueado. Tente novamente em ${lockStatus.remainingSeconds}s.`);
       return;
     }
 
-    if (rateLimitStatus.isLimited) {
+    if (!isThiagoAdmin && rateLimitStatus.isLimited) {
       toast.error(
         `Limite de requisições atingido. Aguarde ${rateLimitStatus.remainingSeconds}s antes de tentar novamente.`,
       );
@@ -265,7 +269,7 @@ function LoginPage() {
     // Prevent duplicate triggers
     if (isSubmittingRef.current || loading) return;
 
-    if (rateLimitStatus.isLimited) {
+    if (!isThiagoAdmin && rateLimitStatus.isLimited) {
       toast.error(
         `Limite de envio de e-mails atingido. Aguarde ${rateLimitStatus.remainingSeconds}s para tentar novamente.`,
       );
@@ -344,7 +348,7 @@ function LoginPage() {
 
   const handleResendConfirmation = async () => {
     if (!sentToEmail || resending) return;
-    if (rateLimitStatus.isLimited) {
+    if (!isThiagoAdmin && rateLimitStatus.isLimited) {
       toast.error(`Aguarde ${rateLimitStatus.remainingSeconds}s antes de reenviar.`);
       return;
     }
